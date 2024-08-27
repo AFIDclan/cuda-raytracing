@@ -137,9 +137,9 @@ namespace transforms {
 	static __host__ __device__ float3 apply_quat(float4 q, float3 v) {
 
 		float a = -v.x * q.y - v.y * q.z - v.z * q.w;
-		float b = v.x * q.x + v.y * q.z - v.z * q.y;
+		float b = v.x * q.x + v.y * q.w - v.z * q.z;
 		float c = v.y * q.x + v.z * q.y - v.x * q.w;
-		float d = v.z * q.x + v.x * q.y - v.y * q.z;
+		float d = v.z * q.x + v.x * q.y - v.y * q.y;
 
 		return make_float3(q.x * b - q.y * a - q.z * d + q.w * c,
 			q.x * c - q.z * a - q.w * b + q.y * d,
@@ -210,94 +210,22 @@ namespace transforms {
 
 	// ==== TEST FUNCTIONS
 
+	static void test_all()
+	{
+		float3 vecz = { 0, 0, 1 };
+		float3 rot = make_float3(0, 3.141592 / 2, 0);
+		float4 quat = euler2quat(rot);
 
-	//#define ASSERT_EQUAL_FLOAT3(v1, v2, epsilon) \
-	//	assert(std::fabs(v1.x - v2.x) < epsilon && \
-	//		   std::fabs(v1.y - v2.y) < epsilon && \
-	//		   std::fabs(v1.z - v2.z) < epsilon);
+		float3 vecy = apply_quat(quat, vecz);
 
-	//#define ASSERT_EQUAL_FLOAT4X4(m1, m2, epsilon) \
-	//	for (int i = 0; i < 4; ++i) { \
-	//		for (int j = 0; j < 4; ++j) { \
-	//			assert(std::fabs(m1.m[i][j] - m2.m[i][j]) < epsilon); \
-	//		} \
-	//	}
 
-	//#define ASSERT_EQUAL_LRE(l1, l2, epsilon) \
-	//	assert(std::fabs(l1.x - l2.x) < epsilon && \
-	//		   std::fabs(l1.y - l2.y) < epsilon && \
-	//		   std::fabs(l1.z - l2.z) < epsilon && \
-	//		   std::fabs(l1.yaw - l2.yaw) < epsilon && \
-	//		   std::fabs(l1.pitch - l2.pitch) < epsilon && \
-	//		   std::fabs(l1.roll - l2.roll) < epsilon);
 
-	//void test_matmul() {
-	//	float4x4 A = { {
-	//		{1, 2, 3, 4},
-	//		{5, 6, 7, 8},
-	//		{9, 10, 11, 12},
-	//		{13, 14, 15, 16}
-	//	} };
+		std::cout << "vec in: " << vecz.x << ", " << vecz.y << ", " << vecz.z << std::endl;
+		std::cout << "rot in: " << rot.x << ", " << rot.y << ", " << rot.z << std::endl;
+		std::cout << "quat: " << quat.x << ", " << quat.y << ", " << quat.z << ", " << quat.w << std::endl;
 
-	//	float4x4 B = { {
-	//		{16, 15, 14, 13},
-	//		{12, 11, 10, 9},
-	//		{8, 7, 6, 5},
-	//		{4, 3, 2, 1}
-	//	} };
 
-	//	float4x4 expected = { {
-	//		{80, 70, 60, 50},
-	//		{240, 214, 188, 162},
-	//		{400, 358, 316, 274},
-	//		{560, 502, 444, 386}
-	//	} };
+		std::cout << "vec out: " << vecy.x << ", " << vecy.y << ", " << vecy.z << std::endl;
 
-	//	float4x4 result = matmul(A, B);
-
-	//	ASSERT_EQUAL_FLOAT4X4(result, expected, 1e-5f);
-	//	std::cout << "test_matmul passed." << std::endl;
-	//}
-
-	//void test_euler_to_rotmat_and_back() {
-	//	float3 euler = make_float3(0.1f, 0.2f, 0.3f);
-
-	//	float3x3 rotmat = euler2rotmat(euler);
-	//	float3 euler_back = rotmat2euler(rotmat);
-
-	//	ASSERT_EQUAL_FLOAT3(euler, euler_back, 1e-5f);
-	//	std::cout << "test_euler_to_rotmat_and_back passed." << std::endl;
-	//}
-
-	//void test_lre_to_homo_and_back() {
-	//	lre original_lre = { 1.0f, 2.0f, 3.0f, 0.1f, 0.2f, 0.3f };
-
-	//	float4x4 homo = lre2homo(original_lre);
-	//	lre converted_lre = homo2lre(homo);
-
-	//	ASSERT_EQUAL_LRE(original_lre, converted_lre, 1e-5f);
-	//	std::cout << "test_lre_to_homo_and_back passed." << std::endl;
-	//}
-
-	//void test_apply_transformations() {
-	//	lre transform = { 1.0f, 2.0f, 3.0f, 0.1f, 0.2f, 0.3f };
-	//	float3 point = make_float3(4.0f, 5.0f, 6.0f);
-
-	//	float3 transformed_point = apply_lre(transform, point);
-
-	//	// To check, apply the inverse transformation and see if we get back the original point
-	//	lre inverse_transform = compose_lre(transform, { -transform.x, -transform.y, -transform.z, -transform.yaw, -transform.pitch, -transform.roll });
-	//	float3 recovered_point = apply_lre(inverse_transform, transformed_point);
-
-	//	ASSERT_EQUAL_FLOAT3(point, recovered_point, 1e-5f);
-	//	std::cout << "test_apply_transformations passed." << std::endl;
-	//}
-
-	//void test_all()
-	//{
-	//	test_matmul();
-	//	test_euler_to_rotmat_and_back();
-	//	test_lre_to_homo_and_back();
-	//	test_apply_transformations();
-	//}
+	}
 }

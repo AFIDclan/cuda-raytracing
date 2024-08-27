@@ -26,6 +26,15 @@ void MeshPrimitive::set_world_rotation(float3 rotation)
 	this->genarate_world_triangles();
 }
 
+void MeshPrimitive::set_world_position(float3 position)
+{
+	this->pose.x = position.x;
+	this->pose.y = position.y;
+	this->pose.z = position.z;
+
+	this->genarate_world_triangles();
+}
+
 void MeshPrimitive::genarate_world_triangles()
 {
 
@@ -39,7 +48,7 @@ void MeshPrimitive::genarate_world_triangles()
 		float3 b = apply_lre(local2world, triangle.vertices[1]);
 		float3 c = apply_lre(local2world, triangle.vertices[2]);
 
-		float3 normal = apply_rotmat(euler2rotmat(make_float3(this->pose.yaw, this->pose.pitch, this->pose.roll)), triangle.normal);
+		float3 normal = apply_rotmat(euler2rotmat(make_float3(local2world.yaw, local2world.pitch, local2world.roll)), triangle.normal);
 
 		this->world_triangles[i] = TrianglePrimitive(a, b, c, normal, triangle.color);
 	}

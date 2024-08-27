@@ -20,6 +20,7 @@ public:
 	TrianglePrimitive* world_triangles;
 
 	void set_world_rotation(float3 rotation);
+	void set_world_position(float3 position);
 
 
 private:

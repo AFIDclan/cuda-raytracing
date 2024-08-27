@@ -21,8 +21,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 		return;
 	}
 
-    //float3 origin = make_float3(camera_pose.x, camera_pose.y, camera_pose.z);
-    float3 origin = make_float3(0,0,0);
+    float3 origin = make_float3(camera_pose.x, camera_pose.y, camera_pose.z);
 
 	float3 ph = make_float3(x, y, 1.0f);
 	float3 direction = apply_matrix(K_inv, ph);
@@ -30,7 +29,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	//Normalize
     direction = normalize(direction);
 
-	//direction = apply_lre(camera_pose, direction);
+	direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
 
 	Ray ray(origin, direction, make_uint2(x, y));
 
@@ -85,6 +84,7 @@ void display_image(uchar3* d_img, int width, int height, size_t pitch, double fp
 }
 
 int main() {
+
     // Image dimensions
 
     double fps = 0.0;
@@ -141,10 +141,11 @@ int main() {
         // Start measuring time
         start_time = cv::getTickCount();
 
-        //AngleAxisd rotation(angle, Vector3d::UnitZ());
 
-        //mesh.set_world_rotation(rotation);
-        //cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+         mesh.set_world_rotation(make_float3(angle, 0, 0));
+         cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+
+		//camera_pose.pitch = angle;
 
         // Launch the CUDA kernel to invert colors
         raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, mesh.num_triangles);
