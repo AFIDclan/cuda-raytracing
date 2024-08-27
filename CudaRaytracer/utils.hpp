@@ -1,0 +1,85 @@
+#pragma once
+
+#include <cuda_runtime.h>
+#include <Eigen/Dense>
+
+
+static __host__ __device__ float3 normalize(float3 v) {
+	float mag = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+	return make_float3(v.x / mag, v.y / mag, v.z / mag);
+}
+
+static __host__ __device__ float3 cross(float3 a, float3 b) {
+	return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+static __host__ __device__ float dot(float3 a, float3 b) {
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+static __host__ __device__ float3 operator+(float3 a, float3 b) {
+	return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+static __host__ __device__ float3 operator-(float3 a, float3 b) {
+	return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+static __host__ __device__ float3 operator*(float3 a, float b) {
+	return make_float3(a.x * b, a.y * b, a.z * b);
+}
+
+static __host__ __device__ float3 operator*(float b, float3 a) {
+	return make_float3(a.x * b, a.y * b, a.z * b);
+}
+
+
+struct float4x4 {
+	float m[4][4];
+};
+
+struct float3x3 {
+	float m[3][3];
+};
+
+static __device__ float4 apply_matrix(const float4x4& matrix, const float4& vec) {
+    float4 result;
+    result.x = matrix.m[0][0] * vec.x + matrix.m[0][1] * vec.y + matrix.m[0][2] * vec.z + matrix.m[0][3] * vec.w;
+    result.y = matrix.m[1][0] * vec.x + matrix.m[1][1] * vec.y + matrix.m[1][2] * vec.z + matrix.m[1][3] * vec.w;
+    result.z = matrix.m[2][0] * vec.x + matrix.m[2][1] * vec.y + matrix.m[2][2] * vec.z + matrix.m[2][3] * vec.w;
+    result.w = matrix.m[3][0] * vec.x + matrix.m[3][1] * vec.y + matrix.m[3][2] * vec.z + matrix.m[3][3] * vec.w;
+    return result;
+}
+
+static __device__ float3 apply_matrix(const float3x3& matrix, const float3& vec) {
+    float3 result;
+    result.x = matrix.m[0][0] * vec.x + matrix.m[0][1] * vec.y + matrix.m[0][2] * vec.z;
+    result.y = matrix.m[1][0] * vec.x + matrix.m[1][1] * vec.y + matrix.m[1][2] * vec.z;
+    result.z = matrix.m[2][0] * vec.x + matrix.m[2][1] * vec.y + matrix.m[2][2] * vec.z;
+    return result;
+}
+
+static float3x3 eigen_mat_to_float(const Eigen::Matrix3d& matrix) {
+    float3x3 result;
+
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            result.m[i][j] = static_cast<float>(matrix(i, j));
+        }
+    }
+
+    return result;
+}
+
+
+static float4x4 eigen_mat_to_float(const Eigen::Matrix4d& matrix) {
+    float4x4 result;
+
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            result.m[i][j] = static_cast<float>(matrix(i, j));
+        }
+    }
+
+    return result;
+}
