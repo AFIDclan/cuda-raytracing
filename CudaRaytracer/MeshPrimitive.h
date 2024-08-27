@@ -2,9 +2,10 @@
 
 #include <vector>
 #include "TrianglePrimitive.hpp"
-#include <Eigen/Dense>
+#include "transforms.hpp"
+#include <cuda_runtime.h>
 
-using namespace Eigen;
+using namespace transforms;
 
 
 class MeshPrimitive
@@ -18,14 +19,14 @@ public:
 	int num_triangles;
 	TrianglePrimitive* world_triangles;
 
-	void set_world_rotation(AngleAxisd rotation);
+	void set_world_rotation(float3 rotation);
 
 
 private:
 	void genarate_world_triangles();
 
 	TrianglePrimitive* triangles;
-	Matrix4d H_pose;
+	lre pose;
 
 };
 

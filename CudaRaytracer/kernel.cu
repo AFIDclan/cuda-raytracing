@@ -4,21 +4,16 @@
 #include <opencv2/cudaimgproc.hpp>
 #include <cuda_runtime.h>
 #include <iostream>
-#include <Eigen/Dense>
 
 #include "utils.hpp"
 #include "Ray.hpp"
 #include "TrianglePrimitive.hpp"
 #include "MeshPrimitive.h"
 
-using namespace Eigen;
-
-
-
 
 
 // Simple CUDA kernel to invert image colors
-__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 H_px_to_ph, const float4x4 H_ph_to_world, TrianglePrimitive* triangles, int count_triangles) {
+__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -26,27 +21,18 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 		return;
 	}
 
+    //float3 origin = make_float3(camera_pose.x, camera_pose.y, camera_pose.z);
+    float3 origin = make_float3(0,0,0);
+
 	float3 ph = make_float3(x, y, 1.0f);
-	ph = apply_matrix(H_px_to_ph, ph);
+	float3 direction = apply_matrix(K_inv, ph);
 
 	//Normalize
-	ph = normalize(ph);
+    direction = normalize(direction);
 
-	float4 origin = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
-	float4 direction = make_float4(ph.x, ph.y, ph.z, 1.0f);
+	//direction = apply_lre(camera_pose, direction);
 
-	origin = apply_matrix(H_ph_to_world, origin);
-	direction = apply_matrix(H_ph_to_world, direction);
-
-	origin.x /= origin.w;
-	origin.y /= origin.w;
-	origin.z /= origin.w;
-
-	direction.x /= direction.w;
-	direction.y /= direction.w;
-	direction.z /= direction.w;
-
-	Ray ray(make_float3(origin.x, origin.y, origin.z), make_float3(direction.x, direction.y, direction.z), make_uint2(x, y));
+	Ray ray(origin, direction, make_uint2(x, y));
 
 	for (int i = 0; i < count_triangles; i++) {
         float3 intersection = triangles[i].ray_intersect(ray);
@@ -106,36 +92,20 @@ int main() {
     int64 start_time = 0;
     int64 end_time = 0;
 
-    /*
-    K = np.array([
-    [800, 0, 640],
-    [0, 800, 360],
-    [0, 0, 1]
-    ])
-    */
-
-	Matrix3d K;
-
- //   int width = 640;
- //   int height = 480;
-
-	//K << 400, 0, width/2,
-	//	 0,   400, height/2,
-	//	 0,   0,   1;
 
     int width = 1280;
     int height = 720;
 
-    K << 800, 0, width / 2,
-        0, 800, height / 2,
-        0, 0, 1;
+    float3x3 K = {
+        800.0, 0.0, width / 2,
+        0,     800.0, height / 2,
+        0,     0,   1
+    };
 
-	Matrix3d H_px_to_ph = K.inverse();
-	Matrix4d H_ph_to_world = Matrix4d::Identity();
+	float3x3 K_inv = invert_intrinsic(K);
 
 
-	float3x3 H_px_to_ph_float = eigen_mat_to_float(H_px_to_ph);
-	float4x4 H_ph_to_world_float = eigen_mat_to_float(H_ph_to_world);
+    lre camera_pose = lre();
 
 	std::vector<TrianglePrimitive> vec_tris;
 
@@ -171,13 +141,13 @@ int main() {
         // Start measuring time
         start_time = cv::getTickCount();
 
-        AngleAxisd rotation(angle, Vector3d::UnitZ());
+        //AngleAxisd rotation(angle, Vector3d::UnitZ());
 
-        mesh.set_world_rotation(rotation);
-        cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+        //mesh.set_world_rotation(rotation);
+        //cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
         // Launch the CUDA kernel to invert colors
-        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, H_px_to_ph_float, H_ph_to_world_float, d_triangles, mesh.num_triangles);
+        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, mesh.num_triangles);
         cudaDeviceSynchronize();
 
         // End measuring time

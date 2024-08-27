@@ -12,21 +12,16 @@ MeshPrimitive::MeshPrimitive(std::vector<TrianglePrimitive> triangles)
 		this->triangles[i] = triangles[i];
 	}
 
-	this->H_pose = Matrix4d::Identity();
+	this->pose = lre();
 
 	this->genarate_world_triangles();
 }
 
-void MeshPrimitive::set_world_rotation(AngleAxisd rotation)
+void MeshPrimitive::set_world_rotation(float3 rotation)
 {
-	Matrix3d new_rotation = rotation.toRotationMatrix();
-	Matrix3d rotation_inv = new_rotation.inverse();
-
-	this->H_pose.block<3, 3>(0, 0) = new_rotation;
-
-	// Apply the rotation to 4th column of the pose matrix
-	this->H_pose.block<3, 1>(0, 3) = rotation_inv * this->H_pose.block<3, 1>(0, 3);
-
+	this->pose.yaw = rotation.x;
+	this->pose.pitch = rotation.y;
+	this->pose.roll = rotation.z;
 
 	this->genarate_world_triangles();
 }
@@ -34,24 +29,19 @@ void MeshPrimitive::set_world_rotation(AngleAxisd rotation)
 void MeshPrimitive::genarate_world_triangles()
 {
 
-	
-
-	Eigen::Matrix4d H_pose_inv = this->H_pose.inverse();
-	Eigen::Matrix3d rotmat_pose_inv = H_pose_inv.block<3, 3>(0, 0);
-
-	float4x4 H_pose_inv_float = eigen_mat_to_float(H_pose_inv);
+	lre local2world = invert_lre(this->pose);
 
 	for (int i = 0; i < this->num_triangles; i++) {
 		TrianglePrimitive triangle = this->triangles[i];
 
 
-		float4 a = apply_matrix(H_pose_inv_float, make_float4(triangle.vertices[0].x, triangle.vertices[0].y, triangle.vertices[0].z, 1.0f));
-		float4 b = apply_matrix(H_pose_inv_float, make_float4(triangle.vertices[1].x, triangle.vertices[1].y, triangle.vertices[1].z, 1.0f));
-		float4 c = apply_matrix(H_pose_inv_float, make_float4(triangle.vertices[2].x, triangle.vertices[2].y, triangle.vertices[2].z, 1.0f));
+		float3 a = apply_lre(local2world, triangle.vertices[0]);
+		float3 b = apply_lre(local2world, triangle.vertices[1]);
+		float3 c = apply_lre(local2world, triangle.vertices[2]);
 
-		float3 normal = apply_matrix(eigen_mat_to_float(rotmat_pose_inv), triangle.normal);
+		float3 normal = apply_rotmat(euler2rotmat(make_float3(this->pose.yaw, this->pose.pitch, this->pose.roll)), triangle.normal);
 
-		this->world_triangles[i] = TrianglePrimitive(make_float3(a.x, a.y, a.z), make_float3(b.x, b.y, b.z), make_float3(c.x, c.y, c.z), normal, triangle.color);
+		this->world_triangles[i] = TrianglePrimitive(a, b, c, normal, triangle.color);
 	}
 
 }

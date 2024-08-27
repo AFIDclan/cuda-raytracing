@@ -82,6 +82,7 @@
   <ItemGroup>
     <ClInclude Include="MeshPrimitive.h" />
     <ClInclude Include="Ray.hpp" />
+    <ClInclude Include="transforms.hpp" />
     <ClInclude Include="TrianglePrimitive.hpp" />
     <ClInclude Include="utils.hpp" />
   </ItemGroup>

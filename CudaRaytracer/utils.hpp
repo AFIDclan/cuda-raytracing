@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include <Eigen/Dense>
+#include "transforms.hpp"
+
+using namespace transforms;
 
 
 static __host__ __device__ float3 normalize(float3 v) {
@@ -33,16 +35,7 @@ static __host__ __device__ float3 operator*(float b, float3 a) {
 	return make_float3(a.x * b, a.y * b, a.z * b);
 }
 
-
-struct float4x4 {
-	float m[4][4];
-};
-
-struct float3x3 {
-	float m[3][3];
-};
-
-static __device__ float4 apply_matrix(const float4x4& matrix, const float4& vec) {
+static __host__ __device__ float4 apply_matrix(const float4x4& matrix, const float4& vec) {
     float4 result;
     result.x = matrix.m[0][0] * vec.x + matrix.m[0][1] * vec.y + matrix.m[0][2] * vec.z + matrix.m[0][3] * vec.w;
     result.y = matrix.m[1][0] * vec.x + matrix.m[1][1] * vec.y + matrix.m[1][2] * vec.z + matrix.m[1][3] * vec.w;
@@ -51,7 +44,7 @@ static __device__ float4 apply_matrix(const float4x4& matrix, const float4& vec)
     return result;
 }
 
-static __device__ float3 apply_matrix(const float3x3& matrix, const float3& vec) {
+static __host__ __device__ float3 apply_matrix(const float3x3& matrix, const float3& vec) {
     float3 result;
     result.x = matrix.m[0][0] * vec.x + matrix.m[0][1] * vec.y + matrix.m[0][2] * vec.z;
     result.y = matrix.m[1][0] * vec.x + matrix.m[1][1] * vec.y + matrix.m[1][2] * vec.z;
@@ -59,27 +52,22 @@ static __device__ float3 apply_matrix(const float3x3& matrix, const float3& vec)
     return result;
 }
 
-static float3x3 eigen_mat_to_float(const Eigen::Matrix3d& matrix) {
-    float3x3 result;
+static __host__ __device__ float3x3 invert_intrinsic(const float3x3& K) {
+    float fx_inv = 1.0f / K.m[0][0];
+    float fy_inv = 1.0f / K.m[1][1];
+    float cx = K.m[0][2];
+    float cy = K.m[1][2];
 
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            result.m[i][j] = static_cast<float>(matrix(i, j));
-        }
-    }
+    float3x3 K_inv;
+    K_inv.m[0][0] = fx_inv;
+    K_inv.m[0][1] = 0.0f;
+    K_inv.m[0][2] = -cx * fx_inv;
+    K_inv.m[1][0] = 0.0f;
+    K_inv.m[1][1] = fy_inv;
+    K_inv.m[1][2] = -cy * fy_inv;
+    K_inv.m[2][0] = 0.0f;
+    K_inv.m[2][1] = 0.0f;
+    K_inv.m[2][2] = 1.0f;
 
-    return result;
-}
-
-
-static float4x4 eigen_mat_to_float(const Eigen::Matrix4d& matrix) {
-    float4x4 result;
-
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            result.m[i][j] = static_cast<float>(matrix(i, j));
-        }
-    }
-
-    return result;
+    return K_inv;
 }
