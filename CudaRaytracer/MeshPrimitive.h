@@ -74,15 +74,18 @@ static struct BVHBoundingBox {
 	}
 
 	d_BVHBoundingBox* to_device_compatible() {
+		int* d_triangle_list;
+		cudaMalloc(&d_triangle_list, triangle_indices.size() * sizeof(int));
+		cudaMemcpy(d_triangle_list, triangle_indices.data(), triangle_indices.size() * sizeof(int), cudaMemcpyHostToDevice);
 
-		int* triangle_list = new int[triangle_indices.size()];
-		for (int i = 0; i < triangle_indices.size(); i++) {
-			triangle_list[i] = triangle_indices[i];
-		}
+		// Allocate and return the device-compatible struct
+		d_BVHBoundingBox* d_bvh_bbox;
+		cudaMalloc(&d_bvh_bbox, sizeof(d_BVHBoundingBox));
+		cudaMemcpy(d_bvh_bbox, new d_BVHBoundingBox(min, max, d_triangle_list, triangle_indices.size()), sizeof(d_BVHBoundingBox), cudaMemcpyHostToDevice);
 
-		return new d_BVHBoundingBox(min, max, triangle_list, triangle_indices.size());
-
+		return d_bvh_bbox;
 	}
+
 
 	void grow_to_include(TrianglePrimitive& triangle) {
 

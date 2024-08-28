@@ -15,7 +15,7 @@
 
 
 // Simple CUDA kernel to invert image colors
-__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles) {
+__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles, d_BVHBoundingBox* bvh_tree) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -40,45 +40,35 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
     float hit_min = -1.0f;
     uchar3 color = make_uchar3(0, 0, 0);
 
-	//for (int j = 0; j < count_bvh_trees; j++) {
- //       if (bvh_trees[j].ray_intersects(ray)) {
 
- //           uchar3* row = (uchar3*)((char*)img + y * pitch);
- //           row[x].x = 255;
- //           row[x].y = 255;
- //           row[x].z = 255;
+    if (bvh_tree->ray_intersects(ray))
+    {
 
- //           
+        for (int i = 0; i < bvh_tree->count_triangles; i++) {
+			int index = bvh_tree->triangle_indices[i];
 
-	//		TrianglePrimitive* triangles = bvh_trees[j].triangles;
-	//		int count_triangles = bvh_trees[j].count_triangles;
+            float3 intersection = triangles[index].ray_intersect(ray);
 
-   
-    for (int i = 0; i < count_triangles; i++) {
-        float3 intersection = triangles[i].ray_intersect(ray);
+            if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
+                continue;
 
-        if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
-            continue;
+            bool inside = triangles[index].point_inside(intersection);
 
-        bool inside = triangles[i].point_inside(intersection);
+            if (inside) {
 
-        if (inside) {
+                float distance = magnitude(intersection - origin);
 
-            float distance = magnitude(intersection - origin);
+                if (hit_min == -1.0f || distance < hit_min) {
+                    hit_min = distance;
+                    float brightness = dot(direction, triangles[index].normal);
+                    color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
+                }
 
-            if (hit_min == -1.0f || distance < hit_min) {
-                hit_min = distance;
-                float brightness = dot(direction, triangles[i].normal);
-                color = make_uchar3(brightness * triangles[i].color.x, brightness * triangles[i].color.y, brightness * triangles[i].color.z);
             }
 
         }
-
     }
-
-        //}
-	//}
-
+    
 
 
     if (hit_min > 0.0f) {
@@ -155,9 +145,8 @@ int main() {
     cudaMalloc(&d_triangles, teapot.num_triangles * sizeof(TrianglePrimitive));
     cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
-	//d_BVHBoundingBox* d_bvh_trees;
-	//cudaMalloc(&d_bvh_trees, 1 * sizeof(d_BVHBoundingBox));
-	//cudaMemcpy(d_bvh_trees, teapot.bvh_top.to_device_compatible(), 1 * sizeof(d_BVHBoundingBox), cudaMemcpyHostToDevice);
+
+	d_BVHBoundingBox* d_bvh_tree = teapot.bvh_top.to_device_compatible();
 
     // Allocate CUDA memory for the image
     uchar3* d_img;
@@ -186,7 +175,7 @@ int main() {
 		//camera_pose.pitch = angle;
 
         // Launch the CUDA kernel to invert colors
-        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, teapot.num_triangles);
+        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, teapot.num_triangles, d_bvh_tree);
         cudaDeviceSynchronize();
 
         // End measuring time
