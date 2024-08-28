@@ -10,6 +10,8 @@
 #include "TrianglePrimitive.hpp"
 #include "MeshPrimitive.h"
 
+#include "OBJLoader.hpp"
+
 
 
 // Simple CUDA kernel to invert image colors
@@ -26,39 +28,70 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	float3 ph = make_float3(x, y, 1.0f);
 	float3 direction = apply_matrix(K_inv, ph);
 
-	direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
+	//direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
     direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
      
     //Normalize
     direction = normalize(direction);
 
-	
-
 	Ray ray(origin, direction, make_uint2(x, y));
 
-	for (int i = 0; i < count_triangles; i++) {
+
+    float hit_min = -1.0f;
+    uchar3 color = make_uchar3(0, 0, 0);
+
+	//for (int j = 0; j < count_bvh_trees; j++) {
+ //       if (bvh_trees[j].ray_intersects(ray)) {
+
+ //           uchar3* row = (uchar3*)((char*)img + y * pitch);
+ //           row[x].x = 255;
+ //           row[x].y = 255;
+ //           row[x].z = 255;
+
+ //           
+
+	//		TrianglePrimitive* triangles = bvh_trees[j].triangles;
+	//		int count_triangles = bvh_trees[j].count_triangles;
+
+   
+    for (int i = 0; i < count_triangles; i++) {
         float3 intersection = triangles[i].ray_intersect(ray);
 
-        if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f) 
-			continue;
+        if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
+            continue;
 
         bool inside = triangles[i].point_inside(intersection);
 
         if (inside) {
-            uchar3* row = (uchar3*)((char*)img + y * pitch);
-            row[x] = triangles[i].color;
 
-            return;
+            float distance = magnitude(intersection - origin);
+
+            if (hit_min == -1.0f || distance < hit_min) {
+                hit_min = distance;
+                float brightness = dot(direction, triangles[i].normal);
+                color = make_uchar3(brightness * triangles[i].color.x, brightness * triangles[i].color.y, brightness * triangles[i].color.z);
+            }
+
         }
-        
+
+    }
+
+        //}
+	//}
+
+
+
+    if (hit_min > 0.0f) {
+        uchar3* row = (uchar3*)((char*)img + y * pitch);
+        row[x] = color;
+    }
+    else {
+        uchar3* row = (uchar3*)((char*)img + y * pitch);
+        row[x].x = direction.x * 255;
+        row[x].y = direction.y * 255;
+        row[x].z = direction.z * 255;
     }
 	
-
-    uchar3* row = (uchar3*)((char*)img + y * pitch);
-    row[x].x = direction.x*255;
-    row[x].y = direction.y*255;
-    row[x].z = direction.z*255;
-    
 }
 
 void display_image(uchar3* d_img, int width, int height, size_t pitch, double fps)
@@ -88,6 +121,8 @@ void display_image(uchar3* d_img, int width, int height, size_t pitch, double fp
 
 int main() {
 
+
+
     // Image dimensions
 
     double fps = 0.0;
@@ -110,20 +145,19 @@ int main() {
 
     lre camera_pose = lre();
 
-	std::vector<TrianglePrimitive> vec_tris;
+    MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/teapot.obj");
+    //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
 
-	vec_tris.push_back(TrianglePrimitive(make_float3(-1.0f, 6.0f, 1.0f), make_float3(1.0f, 6.5f, 1.0f), make_float3(0.0f, 6.0f, -1.0f), make_uchar3(255, 128, 0)));
-    vec_tris.push_back(TrianglePrimitive(make_float3(-3.0f, 6.0f, 2.0f), make_float3(-2.0f, 6.5f, 2.0f), make_float3(-2.5f, 6.0f, -1.0f), make_uchar3(128, 200, 0)));
-
-
-    MeshPrimitive mesh = MeshPrimitive(vec_tris);
-
-
+	teapot.set_world_position(make_float3(0, 0, 6));
+	//teapot.set_world_rotation(make_float3(0, 3.141592/2, 0));
 
     TrianglePrimitive* d_triangles;
-    cudaMalloc(&d_triangles, mesh.num_triangles * sizeof(TrianglePrimitive));
-    cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+    cudaMalloc(&d_triangles, teapot.num_triangles * sizeof(TrianglePrimitive));
+    cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
+	//d_BVHBoundingBox* d_bvh_trees;
+	//cudaMalloc(&d_bvh_trees, 1 * sizeof(d_BVHBoundingBox));
+	//cudaMemcpy(d_bvh_trees, teapot.bvh_top.to_device_compatible(), 1 * sizeof(d_BVHBoundingBox), cudaMemcpyHostToDevice);
 
     // Allocate CUDA memory for the image
     uchar3* d_img;
@@ -141,17 +175,18 @@ int main() {
 
 		angle += 0.001f;
 
+
         // Start measuring time
         start_time = cv::getTickCount();
 
 
-         // mesh.set_world_rotation(make_float3(angle, 0, 0));
-         // cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+        //teapot.set_world_rotation(make_float3(0, angle, 0));
+        //cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
 		//camera_pose.pitch = angle;
 
         // Launch the CUDA kernel to invert colors
-        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, mesh.num_triangles);
+        raytrace << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_triangles, teapot.num_triangles);
         cudaDeviceSynchronize();
 
         // End measuring time

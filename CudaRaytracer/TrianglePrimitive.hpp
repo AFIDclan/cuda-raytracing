@@ -8,6 +8,8 @@ struct TrianglePrimitive {
     float3 vertices[3];
     float3 normal;
     uchar3 color;
+	float min_x, max_x, min_y, max_y, min_z, max_z;
+
 
     // Constructor
     __host__ __device__ TrianglePrimitive(float3 a, float3 b, float3 c, uchar3 color)
@@ -19,6 +21,13 @@ struct TrianglePrimitive {
         float3 v0 = vertices[2] - vertices[0];
         float3 v1 = vertices[1] - vertices[0];
         normal = normalize(cross(v0, v1));
+
+		min_x = fminf(fminf(vertices[0].x, vertices[1].x), vertices[2].x);
+		max_x = fmaxf(fmaxf(vertices[0].x, vertices[1].x), vertices[2].x);
+		min_y = fminf(fminf(vertices[0].y, vertices[1].y), vertices[2].y);
+		max_y = fmaxf(fmaxf(vertices[0].y, vertices[1].y), vertices[2].y);
+		min_z = fminf(fminf(vertices[0].z, vertices[1].z), vertices[2].z);
+		max_z = fmaxf(fmaxf(vertices[0].z, vertices[1].z), vertices[2].z);
     }
 
 
@@ -27,12 +36,26 @@ struct TrianglePrimitive {
         vertices[0] = a;
         vertices[1] = b;
         vertices[2] = c;
+
+        min_x = fminf(fminf(vertices[0].x, vertices[1].x), vertices[2].x);
+        max_x = fmaxf(fmaxf(vertices[0].x, vertices[1].x), vertices[2].x);
+        min_y = fminf(fminf(vertices[0].y, vertices[1].y), vertices[2].y);
+        max_y = fmaxf(fmaxf(vertices[0].y, vertices[1].y), vertices[2].y);
+        min_z = fminf(fminf(vertices[0].z, vertices[1].z), vertices[2].z);
+        max_z = fmaxf(fmaxf(vertices[0].z, vertices[1].z), vertices[2].z);
     }
 
     __host__ __device__ TrianglePrimitive() : normal(make_float3(0.0f, 0.0f, 0.0f)), color(make_uchar3(255, 255, 255)) {
         vertices[0] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[1] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[2] = make_float3(0.0f, 0.0f, 0.0f);
+
+        min_x = fminf(fminf(vertices[0].x, vertices[1].x), vertices[2].x);
+        max_x = fmaxf(fmaxf(vertices[0].x, vertices[1].x), vertices[2].x);
+        min_y = fminf(fminf(vertices[0].y, vertices[1].y), vertices[2].y);
+        max_y = fmaxf(fmaxf(vertices[0].y, vertices[1].y), vertices[2].y);
+        min_z = fminf(fminf(vertices[0].z, vertices[1].z), vertices[2].z);
+        max_z = fmaxf(fmaxf(vertices[0].z, vertices[1].z), vertices[2].z);
     }
 
     __host__ __device__ float3 ray_intersect(const Ray& ray) {
@@ -55,6 +78,11 @@ struct TrianglePrimitive {
     }
 
     __host__ __device__ bool point_inside(const float3& point) const {
+
+        // Check bounding box first
+		if (point.x < min_x || point.x > max_x || point.y < min_y || point.y > max_y || point.z < min_z || point.z > max_z) {
+			return false;
+		}
 
         float3 v0 = vertices[2] - vertices[0];
         float3 v1 = vertices[1] - vertices[0];

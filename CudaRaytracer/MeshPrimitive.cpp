@@ -1,6 +1,7 @@
 #include "MeshPrimitive.h"
 
 
+
 MeshPrimitive::MeshPrimitive(std::vector<TrianglePrimitive> triangles)
 {
 	this->triangles = new TrianglePrimitive[triangles.size()];
@@ -39,6 +40,7 @@ void MeshPrimitive::genarate_world_triangles()
 {
 
 	lre local2world = invert_lre(this->pose);
+	//lre local2world = this->pose;
 
 	for (int i = 0; i < this->num_triangles; i++) {
 		TrianglePrimitive triangle = this->triangles[i];
@@ -52,5 +54,7 @@ void MeshPrimitive::genarate_world_triangles()
 
 		this->world_triangles[i] = TrianglePrimitive(a, b, c, normal, triangle.color);
 	}
+
+	this->bvh_top = BVHBoundingBox(this->world_triangles, this->num_triangles);
 
 }

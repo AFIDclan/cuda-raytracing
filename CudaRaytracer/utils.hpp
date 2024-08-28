@@ -5,9 +5,12 @@
 
 using namespace transforms;
 
+static __host__ __device__ float magnitude(float3 v) {
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
 
 static __host__ __device__ float3 normalize(float3 v) {
-	float mag = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+	float mag = magnitude(v);
 	return make_float3(v.x / mag, v.y / mag, v.z / mag);
 }
 
@@ -33,6 +36,13 @@ static __host__ __device__ float3 operator*(float3 a, float b) {
 
 static __host__ __device__ float3 operator*(float b, float3 a) {
 	return make_float3(a.x * b, a.y * b, a.z * b);
+}
+
+template <typename T>
+__host__ __device__ void cu_swap(T& a, T& b) {
+    T temp = a;
+    a = b;
+    b = temp;
 }
 
 static __host__ __device__ float4 apply_matrix(const float4x4& matrix, const float4& vec) {
