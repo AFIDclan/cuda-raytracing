@@ -26,11 +26,13 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	float3 ph = make_float3(x, y, 1.0f);
 	float3 direction = apply_matrix(K_inv, ph);
 
-	//Normalize
+	direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
+    direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
+     
+    //Normalize
     direction = normalize(direction);
 
-	direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
-	direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
+	
 
 	Ray ray(origin, direction, make_uint2(x, y));
 
