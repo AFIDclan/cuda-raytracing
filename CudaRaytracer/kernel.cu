@@ -29,6 +29,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	//Normalize
     direction = normalize(direction);
 
+	direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
 	direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
 
 	Ray ray(origin, direction, make_uint2(x, y));
@@ -109,8 +110,8 @@ int main() {
 
 	std::vector<TrianglePrimitive> vec_tris;
 
-	vec_tris.push_back(TrianglePrimitive(make_float3(-1.0f, 1.0f, 6.0f), make_float3(1.0f, 1.0f, 6.5f), make_float3(0.0f, -1.0f, 6.0f), make_uchar3(255, 128, 0)));
-    vec_tris.push_back(TrianglePrimitive(make_float3(-3.0f, 2.0f, 6.0f), make_float3(-2.0f, 2.0f, 6.5f), make_float3(-2.5f, -1.0f, 6.0f), make_uchar3(128, 200, 0)));
+	vec_tris.push_back(TrianglePrimitive(make_float3(-1.0f, 6.0f, 1.0f), make_float3(1.0f, 6.5f, 1.0f), make_float3(0.0f, 6.0f, -1.0f), make_uchar3(255, 128, 0)));
+    vec_tris.push_back(TrianglePrimitive(make_float3(-3.0f, 6.0f, 2.0f), make_float3(-2.0f, 6.5f, 2.0f), make_float3(-2.5f, 6.0f, -1.0f), make_uchar3(128, 200, 0)));
 
 
     MeshPrimitive mesh = MeshPrimitive(vec_tris);
@@ -142,8 +143,8 @@ int main() {
         start_time = cv::getTickCount();
 
 
-         mesh.set_world_rotation(make_float3(angle, 0, 0));
-         cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+         // mesh.set_world_rotation(make_float3(angle, 0, 0));
+         // cudaMemcpy(d_triangles, mesh.world_triangles, mesh.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
 		//camera_pose.pitch = angle;
 
