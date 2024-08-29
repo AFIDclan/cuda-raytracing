@@ -36,71 +36,52 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 
 	Ray ray(origin, direction, make_uint2(x, y));
 
-
-    bool bvh_found = true;
-    d_BVHTree current_bvh = bvh_tree[0];
-
-
-    // Check if the root node intersects with the ray
-    if (current_bvh.ray_intersects(ray)) {
-        while (bvh_found && current_bvh.child_index_a > 0) {
-
-            if (bvh_tree[current_bvh.child_index_b].ray_intersects(ray)) {
-                current_bvh = bvh_tree[current_bvh.child_index_b];
-
-				if (current_bvh.child_index_a <= 0) {
-					break;
-				}
-            }
-            else if (bvh_tree[current_bvh.child_index_a].ray_intersects(ray)) {
-                current_bvh = bvh_tree[current_bvh.child_index_a];
-
-                if (current_bvh.child_index_a <= 0) {
-                    break;
-                }
-            }
-            else {
-                bvh_found = false;
-            }
-        }
-    }
-    else {
-        bvh_found = false;  // No intersection with the root node
-    }
-
-
-
     float hit_min = -1.0f;
     uchar3 color = make_uchar3(0, 0, 0);
 
-    if (bvh_found)
-    {
+    // Initialize a simple stack to keep track of nodes to explore
+    int stack[64];  // Adjust the size depending on your BVH depth
+    int stack_index = 0;
 
-        for (int i = 0; i < current_bvh.count_triangles; i++) {
-			int index = current_bvh.triangle_indices[i];
+    stack[stack_index++] = 0;  // Start with the root node
 
-            float3 intersection = triangles[index].ray_intersect(ray);
+    while (stack_index > 0) {
+        int node_index = stack[--stack_index];
+        d_BVHTree current_bvh = bvh_tree[node_index];
 
-            if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
-                continue;
-
-            bool inside = triangles[index].point_inside(intersection);
-
-            if (inside) {
-
-                float distance = magnitude(intersection - origin);
-
-                if (hit_min == -1.0f || distance < hit_min) {
-                    hit_min = distance;
-                    float brightness = dot(direction, triangles[index].normal);
-                    color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
-                }
-
+        // Check if the current node intersects with the ray
+        if (current_bvh.ray_intersects(ray)) {
+            if (current_bvh.child_index_a > 0) {
+                // If the node has children, push them onto the stack
+                stack[stack_index++] = current_bvh.child_index_a;
+                stack[stack_index++] = current_bvh.child_index_b;
             }
+            else {
+                // Leaf node: check for intersections with triangles
+                for (int i = 0; i < current_bvh.count_triangles; i++) {
+                    int index = current_bvh.triangle_indices[i];
 
+                    float3 intersection = triangles[index].ray_intersect(ray);
+
+                    if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
+                        continue;
+
+                    bool inside = triangles[index].point_inside(intersection);
+
+                    if (inside) {
+                        float distance = magnitude(intersection - ray.origin);
+
+                        if (hit_min == -1.0f || distance < hit_min) {
+                            hit_min = distance;
+                            float brightness = dot(ray.direction, triangles[index].normal);
+                            color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
+                        }
+                    }
+                }
+            }
         }
     }
-   
+
 
     if (hit_min > 0.0f) {
         uchar3* row = (uchar3*)((char*)img + y * pitch);
