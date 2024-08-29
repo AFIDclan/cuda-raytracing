@@ -145,6 +145,9 @@ static struct BVHTree {
 
 		if (depth >= max_depth) 
 			return;
+
+		if (triangle_indices.size() <= 1)
+			return;
 		
 
 
