@@ -68,6 +68,6 @@ void MeshPrimitive::genarate_world_triangles()
 	master_list_trees->push_back(&this->bvh_top);
 
 	// Fill without recursion
-	this->bvh_top.fill(1, 3);
+	this->bvh_top.fill(1, 10);
 
 }

@@ -153,20 +153,56 @@ static struct BVHTree {
 		std::vector<int> left_indices;
 		std::vector<int> right_indices;
 
+		std::string check = "x";
+
+		if (max.y - min.y > max.x - min.x && max.y - min.y > max.z - min.z) {
+			check = "y";
+		}
+
+		else if (max.z - min.z > max.x - min.x && max.z - min.z > max.y - min.y) {
+			check = "z";
+		}
+
+		
+
 		for (int i = 0; i < triangle_indices.size(); i++) {
 			int idx = triangle_indices[i];
 			TrianglePrimitive triangle = master_list_triangles[idx];
 
 			float3 triangle_center = triangle.center();
 
+			//default to x
+			float mid_check = mid.x;
+
+			float vert_0_check = triangle.vertices[0].x;
+			float vert_1_check = triangle.vertices[1].x;
+			float vert_2_check = triangle.vertices[2].x;
+
+			if (check == "y")
+			{
+				mid_check = mid.y;
+
+				vert_0_check = triangle.vertices[0].y;
+				vert_1_check = triangle.vertices[1].y;
+				vert_2_check = triangle.vertices[2].y;
+			}
+			else if (check == "z") {
+				mid_check = mid.z;
+
+				vert_0_check = triangle.vertices[0].z;
+				vert_1_check = triangle.vertices[1].z;
+				vert_2_check = triangle.vertices[2].z;
+			}
+
+
 
 			// We want triangles to be in both children if they are on the boundary
-			if (triangle.vertices[0].x <= mid.x || triangle.vertices[1].x <= mid.x || triangle.vertices[2].x <= mid.x) {
+			if (vert_0_check <= mid_check || vert_1_check <= mid_check || vert_2_check <= mid_check) {
 				left_indices.push_back(idx);
 			}
 
 
-			if (triangle.vertices[0].x >= mid.x || triangle.vertices[1].x >= mid.x || triangle.vertices[2].x >= mid.x) {
+			if (vert_0_check >= mid_check || vert_1_check >= mid_check || vert_2_check >= mid_check) {
 				right_indices.push_back(idx);
 			}
 		}
