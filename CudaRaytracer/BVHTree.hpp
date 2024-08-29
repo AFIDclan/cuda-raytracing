@@ -33,23 +33,12 @@ static struct d_BVHTree {
 		float tmin = (min.x - ray.origin.x) / ray.direction.x;
 		float tmax = (max.x - ray.origin.x) / ray.direction.x;
 
-
-		if (tmin > tmax)
-		{
-			float temp = tmin;
-			tmin = tmax;
-			tmax = temp;
-		}
+		if (tmin > tmax) cu_swap(tmin, tmax);
 
 		float tymin = (min.y - ray.origin.y) / ray.direction.y;
 		float tymax = (max.y - ray.origin.y) / ray.direction.y;
 
-		if (tymin > tymax)
-		{
-			float temp = tymin;
-			tymin = tymax;
-			tymax = temp;
-		}
+		if (tymin > tymax) cu_swap(tymin, tymax);
 
 		// Check for intersection failures
 		if ((tmin > tymax) || (tymin > tmax))
@@ -64,12 +53,7 @@ static struct d_BVHTree {
 		float tzmin = (min.z - ray.origin.z) / ray.direction.z;
 		float tzmax = (max.z - ray.origin.z) / ray.direction.z;
 
-		if (tzmin > tzmax)
-		{
-			float temp = tzmin;
-			tzmin = tzmax;
-			tzmax = temp;
-		}
+		if (tzmin > tzmax) cu_swap(tzmin, tzmax);
 
 		// Final intersection check
 		if ((tmin > tzmax) || (tzmin > tmax))
@@ -175,10 +159,14 @@ static struct BVHTree {
 
 			float3 triangle_center = triangle.center();
 
-			if (triangle_center.x < mid.x) {
+
+			// We want triangles to be in both children if they are on the boundary
+			if (triangle.vertices[0].x <= mid.x || triangle.vertices[1].x <= mid.x || triangle.vertices[2].x <= mid.x) {
 				left_indices.push_back(idx);
 			}
-			else {
+
+
+			if (triangle.vertices[0].x >= mid.x || triangle.vertices[1].x >= mid.x || triangle.vertices[2].x >= mid.x) {
 				right_indices.push_back(idx);
 			}
 		}
