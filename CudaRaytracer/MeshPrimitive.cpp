@@ -55,6 +55,19 @@ void MeshPrimitive::genarate_world_triangles()
 		this->world_triangles[i] = TrianglePrimitive(a, b, c, normal, triangle.color);
 	}
 
-	this->bvh_top = BVHBoundingBox(this->world_triangles, this->num_triangles);
+	std::vector<BVHTree*>* master_list_trees = new std::vector<BVHTree*>();
+
+	std::vector<int> triangle_indices;
+
+	for (int i = 0; i < this->num_triangles; i++) {
+		triangle_indices.push_back(i);
+	}
+
+	this->bvh_top = BVHTree(master_list_trees, this->world_triangles, triangle_indices);
+
+	master_list_trees->push_back(&this->bvh_top);
+
+	// Fill without recursion
+	this->bvh_top.fill(1, 2);
 
 }

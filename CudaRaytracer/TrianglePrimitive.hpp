@@ -77,6 +77,11 @@ struct TrianglePrimitive {
         return point;
     }
 
+    __host__ __device__ float3 center() const {
+        return (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
+    }
+
+
     __host__ __device__ bool point_inside(const float3& point) const {
 
         // Check bounding box first

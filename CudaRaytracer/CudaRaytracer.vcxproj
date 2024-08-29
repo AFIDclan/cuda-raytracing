@@ -80,6 +80,7 @@
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BVHTree.hpp" />
     <ClInclude Include="MeshPrimitive.h" />
     <ClInclude Include="OBJLoader.hpp" />
     <ClInclude Include="Ray.hpp" />

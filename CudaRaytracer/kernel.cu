@@ -15,7 +15,7 @@
 
 
 // Simple CUDA kernel to invert image colors
-__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles, d_BVHBoundingBox* bvh_tree) {
+__global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles, d_BVHTree* bvh_tree) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -37,15 +37,47 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	Ray ray(origin, direction, make_uint2(x, y));
 
 
+    bool bvh_found = true;
+    d_BVHTree current_bvh = bvh_tree[0];
+
+
+    // Check if the root node intersects with the ray
+    if (current_bvh.ray_intersects(ray)) {
+        while (bvh_found && current_bvh.child_index_a > 0) {
+
+            if (bvh_tree[current_bvh.child_index_b].ray_intersects(ray)) {
+                current_bvh = bvh_tree[current_bvh.child_index_b];
+
+				if (current_bvh.child_index_a <= 0) {
+					break;
+				}
+            }
+            else if (bvh_tree[current_bvh.child_index_a].ray_intersects(ray)) {
+                current_bvh = bvh_tree[current_bvh.child_index_a];
+
+                if (current_bvh.child_index_a <= 0) {
+                    break;
+                }
+            }
+            else {
+                bvh_found = false;
+            }
+        }
+    }
+    else {
+        bvh_found = false;  // No intersection with the root node
+    }
+
+
+
     float hit_min = -1.0f;
     uchar3 color = make_uchar3(0, 0, 0);
 
-
-    if (bvh_tree->ray_intersects(ray))
+    if (bvh_found)
     {
 
-        for (int i = 0; i < bvh_tree->count_triangles; i++) {
-			int index = bvh_tree->triangle_indices[i];
+        for (int i = 0; i < current_bvh.count_triangles; i++) {
+			int index = current_bvh.triangle_indices[i];
 
             float3 intersection = triangles[index].ray_intersect(ray);
 
@@ -68,8 +100,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 
         }
     }
-    
-
+   
 
     if (hit_min > 0.0f) {
         uchar3* row = (uchar3*)((char*)img + y * pitch);
@@ -77,9 +108,9 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
     }
     else {
         uchar3* row = (uchar3*)((char*)img + y * pitch);
-        row[x].x = direction.x * 255;
-        row[x].y = direction.y * 255;
-        row[x].z = direction.z * 255;
+        row[x].x = (direction.x * 255);
+        row[x].y = (direction.y * 255);
+        row[x].z = (direction.z * 255);
     }
 	
 }
@@ -138,7 +169,7 @@ int main() {
     MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/teapot.obj");
     //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
 
-	teapot.set_world_position(make_float3(0, 0, 6));
+	teapot.set_world_position(make_float3(0, 0, 10));
 	//teapot.set_world_rotation(make_float3(0, 3.141592/2, 0));
 
     TrianglePrimitive* d_triangles;
@@ -146,7 +177,7 @@ int main() {
     cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
 
-	d_BVHBoundingBox* d_bvh_tree = teapot.bvh_top.to_device_compatible();
+    d_BVHTree* d_bvh_tree = BVHTree::compile_tree(teapot.bvh_top);
 
     // Allocate CUDA memory for the image
     uchar3* d_img;
