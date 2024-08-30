@@ -54,13 +54,13 @@ struct TrianglePrimitive {
         float denom = dot(ray.direction, normal);
 
         if (abs(denom) < 1e-6) {
-            return make_float3(0.0f, 0.0f, 0.0f);
+            return make_float3(FLT_MAX, FLT_MAX, FLT_MAX);
         }
 
         float t = dot(vertices[0] - ray.origin, normal) / denom;
 
         if (t < 0.0f) {
-            return make_float3(0.0f, 0.0f, 0.0f);
+            return make_float3(FLT_MAX, FLT_MAX, FLT_MAX);
         }
 
         float3 point = ray.origin + t * ray.direction;

@@ -51,11 +51,20 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
         d_BVHTree current_bvh = bvh_tree[node_index];
 
         // Check if the current node intersects with the ray
-        if (current_bvh.ray_intersects(ray)) {
+		float bb_dist = current_bvh.ray_intersects(ray);
+        if (bb_dist < FLT_MAX) {
+
+			// If the current node is further than the closest hit, skip it
+			if (bb_dist > hit_min && hit_min != -1.0f) {
+				continue;
+			}
+
             if (current_bvh.child_index_a > 0) {
                 // If the node has children, push them onto the stack
-                stack[stack_index++] = current_bvh.child_index_a;
+
+				// TODO: Push the closest child first
                 stack[stack_index++] = current_bvh.child_index_b;
+                stack[stack_index++] = current_bvh.child_index_a;
             }
             else {
                 // Leaf node: check for intersections with triangles
@@ -64,7 +73,8 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 
                     float3 intersection = triangles[index].ray_intersect(ray);
 
-                    if (intersection.x == 0.0f && intersection.y == 0.0f && intersection.z == 0.0f)
+					// If the intersection is at FLT_MAX, then the ray did not intersect with the triangle
+                    if (intersection.x == FLT_MAX)
                         continue;
 
                     bool inside = triangles[index].point_inside(intersection);

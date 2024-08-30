@@ -29,20 +29,20 @@ static struct d_BVHTree {
 
 	__host__ __device__ d_BVHTree(float3 min, float3 max, int child_index_a, int child_index_b, int* triangle_indices, int count_triangles) : min(min), max(max), child_index_a(child_index_a), child_index_b(child_index_b), triangle_indices(triangle_indices), count_triangles(count_triangles) {}
 
-	__host__ __device__ bool ray_intersects(const Ray& ray) {
-		float tmin = (min.x - ray.origin.x) / ray.direction.x;
-		float tmax = (max.x - ray.origin.x) / ray.direction.x;
+	__host__ __device__ float ray_intersects(const Ray& ray) {
+		float tmin = (min.x - ray.origin.x) * ray.direction_inv.x;
+		float tmax = (max.x - ray.origin.x) * ray.direction_inv.x;
 
 		if (tmin > tmax) cu_swap(tmin, tmax);
 
-		float tymin = (min.y - ray.origin.y) / ray.direction.y;
-		float tymax = (max.y - ray.origin.y) / ray.direction.y;
+		float tymin = (min.y - ray.origin.y) * ray.direction_inv.y;
+		float tymax = (max.y - ray.origin.y) * ray.direction_inv.y;
 
 		if (tymin > tymax) cu_swap(tymin, tymax);
 
 		// Check for intersection failures
 		if ((tmin > tymax) || (tymin > tmax))
-			return false;
+			return FLT_MAX;
 
 		// Update tmin and tmax to account for y-axis intersection
 		if (tymin > tmin)
@@ -50,22 +50,21 @@ static struct d_BVHTree {
 		if (tymax < tmax)
 			tmax = tymax;
 
-		float tzmin = (min.z - ray.origin.z) / ray.direction.z;
-		float tzmax = (max.z - ray.origin.z) / ray.direction.z;
+		float tzmin = (min.z - ray.origin.z) * ray.direction_inv.z;
+		float tzmax = (max.z - ray.origin.z) * ray.direction_inv.z;
 
 		if (tzmin > tzmax) cu_swap(tzmin, tzmax);
 
 		// Final intersection check
 		if ((tmin > tzmax) || (tzmin > tmax))
-			return false;
+			return FLT_MAX;
 
-		// Update tmin and tmax to account for z-axis intersection
+		// Update tmin to account for z-axis intersection
 		if (tzmin > tmin)
 			tmin = tzmin;
-		if (tzmax < tmax)
-			tmax = tzmax;
 
-		return (tmax >= tmin);
+		// Return the minimum distance to the bounding box
+		return tmin;
 	}
 
 
@@ -176,31 +175,25 @@ static struct BVHTree {
 
 			//default to x
 			float mid_check = mid.x;
+			float tri_check = triangle_center.x;
 
-			float vert_0_check = triangle.vertices[0].x;
-			float vert_1_check = triangle.vertices[1].x;
-			float vert_2_check = triangle.vertices[2].x;
 
 			if (check == "y")
 			{
 				mid_check = mid.y;
 
-				vert_0_check = triangle.vertices[0].y;
-				vert_1_check = triangle.vertices[1].y;
-				vert_2_check = triangle.vertices[2].y;
+				tri_check = triangle_center.y;
 			}
 			else if (check == "z") {
 				mid_check = mid.z;
 
-				vert_0_check = triangle.vertices[0].z;
-				vert_1_check = triangle.vertices[1].z;
-				vert_2_check = triangle.vertices[2].z;
+				tri_check = triangle_center.z;
 			}
 
 
 
 			// We want triangles to be in both children if they are on the boundary
-			if (vert_0_check <= mid_check || vert_1_check <= mid_check || vert_2_check <= mid_check) {
+			if (tri_check <= mid_check) {
 				left_indices.push_back(idx);
 			}
 			else {
