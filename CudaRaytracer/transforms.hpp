@@ -21,7 +21,35 @@ namespace transforms {
 		float m[3][3];
 	};
 
+	static void print(const float4x4& matrix) {
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				std::cout << matrix.m[i][j] << ' ';
+			}
+			std::cout << std::endl;
+		}
+	}
 
+	static void print(const float3x3& matrix) {
+		for (int i = 0; i < 3; ++i) {
+			for (int j = 0; j < 3; ++j) {
+				std::cout << matrix.m[i][j] << ' ';
+			}
+			std::cout << std::endl;
+		}
+	}
+
+	static void print(const lre& lre) {
+		std::cout << lre.x << ", " << lre.y << ", " << lre.z << ", " << lre.yaw << ", " << lre.pitch << ", " << lre.roll << std::endl;
+	}	
+
+	static void print(const float3 v) {
+		std::cout << v.x << ", " << v.y << ", " << v.z << std::endl;
+	}
+
+	static void print(const float4 v) {
+		std::cout << v.x << ", " << v.y << ", " << v.z << ", " << v.w << std::endl;
+	}	
 
 
 	static __host__ __device__ float3x3 invert_rotmat(const float3x3& rotmat) {
@@ -139,7 +167,7 @@ namespace transforms {
 		float a = -v.x * q.y - v.y * q.z - v.z * q.w;
 		float b = v.x * q.x + v.y * q.w - v.z * q.z;
 		float c = v.y * q.x + v.z * q.y - v.x * q.w;
-		float d = v.z * q.x + v.x * q.y - v.y * q.y;
+		float d = v.z * q.x + v.x * q.z - v.y * q.y;
 
 		return make_float3(q.x * b - q.y * a - q.z * d + q.w * c,
 			q.x * c - q.z * a - q.w * b + q.y * d,
@@ -152,10 +180,12 @@ namespace transforms {
 		float3 shift = make_float3(-v.x, -v.y, -v.z);
 		float3x3 R = euler2rotmat(make_float3(v.yaw, v.pitch, v.roll));
 
+		float3 rot_shift = apply_rotmat(R, shift);	
+
 		float4x4 result = {
-			R.m[0][0], R.m[0][1], R.m[0][2], shift.x,
-			R.m[1][0], R.m[1][1], R.m[1][2], shift.y,
-			R.m[2][0], R.m[2][1], R.m[2][2], shift.z,
+			R.m[0][0], R.m[0][1], R.m[0][2], rot_shift.x,
+			R.m[1][0], R.m[1][1], R.m[1][2], rot_shift.y,
+			R.m[2][0], R.m[2][1], R.m[2][2], rot_shift.z,
 			0.0f, 0.0f, 0.0f, 1.0f
 		};
 
@@ -212,20 +242,58 @@ namespace transforms {
 
 	static void test_all()
 	{
-		float3 vecz = { 0, 0, 1 };
-		float3 rot = make_float3(0, 3.141592 / 2, 0);
-		float4 quat = euler2quat(rot);
+		//float3 vecz = { 0, 0, 1 };
+		//float3 rot = make_float3(0, 3.141592 / 2, 0);
+		//float4 quat = euler2quat(rot);
 
-		float3 vecy = apply_quat(quat, vecz);
+		//float3 vecy = apply_quat(quat, vecz);
 
-
-
-		std::cout << "vec in: " << vecz.x << ", " << vecz.y << ", " << vecz.z << std::endl;
-		std::cout << "rot in: " << rot.x << ", " << rot.y << ", " << rot.z << std::endl;
-		std::cout << "quat: " << quat.x << ", " << quat.y << ", " << quat.z << ", " << quat.w << std::endl;
+		//std::cout << "vec in: " << vecz.x << ", " << vecz.y << ", " << vecz.z << std::endl;
+		//std::cout << "rot in: " << rot.x << ", " << rot.y << ", " << rot.z << std::endl;
+		//std::cout << "quat: " << quat.x << ", " << quat.y << ", " << quat.z << ", " << quat.w << std::endl;
 
 
-		std::cout << "vec out: " << vecy.x << ", " << vecy.y << ", " << vecy.z << std::endl;
+		//std::cout << "vec out: " << vecy.x << ", " << vecy.y << ", " << vecy.z << std::endl;
 
+
+		float3 v = make_float3(6, -2, 5);
+		lre l = lre();
+		l.y = 10;
+		l.pitch = 0.5;
+
+		std::cout << "lre in: \n";
+		print(l);
+
+
+		float4x4 homo = lre2homo(l);
+
+		std::cout << "homo: \n";
+		print(homo);
+
+		float4x4 homo_inv = invert_homo(homo);
+
+		std::cout << "inverted: \n";
+		print(homo_inv);
+
+		lre l_inv = homo2lre(homo_inv);
+
+		
+		std::cout << "lre inv: \n";
+		print(l_inv);
+
+
+
+		float3 subtracted = make_float3(v.x - l_inv.x, v.y - l_inv.y, v.z - l_inv.z);
+		std::cout << "subtracted: \n";
+		print(subtracted);
+
+		float4 quat = euler2quat(make_float3(l_inv.yaw, l_inv.pitch, l_inv.roll));
+
+		std::cout << "Quat: \n";
+		print(quat);
+
+		float3 v_appl = apply_quat(quat, subtracted);
+
+		std::cout << "vec out: " << v_appl.x << ", " << v_appl.y << ", " << v_appl.z << std::endl;
 	}
 }

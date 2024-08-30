@@ -203,9 +203,7 @@ static struct BVHTree {
 			if (vert_0_check <= mid_check || vert_1_check <= mid_check || vert_2_check <= mid_check) {
 				left_indices.push_back(idx);
 			}
-
-
-			if (vert_0_check >= mid_check || vert_1_check >= mid_check || vert_2_check >= mid_check) {
+			else {
 				right_indices.push_back(idx);
 			}
 		}

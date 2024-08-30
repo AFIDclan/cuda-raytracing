@@ -8,6 +8,7 @@ struct TrianglePrimitive {
     float3 vertices[3];
     float3 normal;
     uchar3 color;
+	float area;
 
 
     // Constructor
@@ -20,6 +21,8 @@ struct TrianglePrimitive {
         float3 v0 = vertices[2] - vertices[0];
         float3 v1 = vertices[1] - vertices[0];
         normal = normalize(cross(v0, v1));
+
+		area = 0.5f * magnitude(cross(v0, v1));
     }
 
 
@@ -28,12 +31,22 @@ struct TrianglePrimitive {
         vertices[0] = a;
         vertices[1] = b;
         vertices[2] = c;
+
+        float3 v0 = vertices[2] - vertices[0];
+        float3 v1 = vertices[1] - vertices[0];
+
+        area = 0.5f * magnitude(cross(v0, v1));
     }
 
     __host__ __device__ TrianglePrimitive() : normal(make_float3(0.0f, 0.0f, 0.0f)), color(make_uchar3(255, 255, 255)) {
         vertices[0] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[1] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[2] = make_float3(0.0f, 0.0f, 0.0f);
+
+        float3 v0 = vertices[2] - vertices[0];
+        float3 v1 = vertices[1] - vertices[0];
+
+        area = 0.5f * magnitude(cross(v0, v1));
     }
 
     __host__ __device__ float3 ray_intersect(const Ray& ray) {

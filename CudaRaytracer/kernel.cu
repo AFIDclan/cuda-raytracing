@@ -13,7 +13,6 @@
 #include "OBJLoader.hpp"
 
 
-
 // Simple CUDA kernel to invert image colors
 __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, TrianglePrimitive* triangles, int count_triangles, d_BVHTree* bvh_tree) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -28,7 +27,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 	float3 ph = make_float3(x, y, 1.0f);
 	float3 direction = apply_matrix(K_inv, ph);
 
-	//direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
+	direction = apply_euler(make_float3(0, 3.141592/2, 0), direction);
     direction = apply_euler(make_float3(camera_pose.yaw, camera_pose.pitch, camera_pose.roll), direction);
      
     //Normalize
@@ -39,11 +38,13 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
     float hit_min = -1.0f;
     uchar3 color = make_uchar3(0, 0, 0);
 
-    // Initialize a simple stack to keep track of nodes to explore
-    int stack[64];  // Adjust the size depending on your BVH depth
+
+
+    int stack[64];
     int stack_index = 0;
 
-    stack[stack_index++] = 0;  // Start with the root node
+    // Start with the root node
+    stack[stack_index++] = 0; 
 
     while (stack_index > 0) {
         int node_index = stack[--stack_index];
@@ -58,7 +59,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
             }
             else {
                 // Leaf node: check for intersections with triangles
-                for (int i = 0; i < current_bvh.count_triangles; i++) {
+               for (int i = 0; i < current_bvh.count_triangles; i++) {
                     int index = current_bvh.triangle_indices[i];
 
                     float3 intersection = triangles[index].ray_intersect(ray);
@@ -77,11 +78,10 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
                             color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
                         }
                     }
-                }
+               }
             }
         }
     }
-
 
     if (hit_min > 0.0f) {
         uchar3* row = (uchar3*)((char*)img + y * pitch);
@@ -123,7 +123,9 @@ void display_image(uchar3* d_img, int width, int height, size_t pitch, double fp
 
 int main() {
 
+	//transforms::test_all();
 
+	//exit(0);
 
     // Image dimensions
 
@@ -150,8 +152,9 @@ int main() {
     MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/teapot.obj");
     //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
 
-	teapot.set_world_position(make_float3(0, 0, 10));
-	//teapot.set_world_rotation(make_float3(0, 3.141592/2, 0));
+	teapot.set_world_position(make_float3(0, 8, -2));
+	//teapot.set_world_position(make_float3(0, 0, 10));
+	teapot.set_world_rotation(make_float3(0, 3.141592/2, 0));
 
     TrianglePrimitive* d_triangles;
     cudaMalloc(&d_triangles, teapot.num_triangles * sizeof(TrianglePrimitive));
