@@ -89,7 +89,7 @@ struct TrianglePrimitive {
         float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
         float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
 
-        return (u >= 0.0f) && (v >= 0.0f) && (u + v < 1.0f);
+        return (u >= 0.0f) && (v >= 0.0f) && (u + v <= 1.0f);
     }
 
 };

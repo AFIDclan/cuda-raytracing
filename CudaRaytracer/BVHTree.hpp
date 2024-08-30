@@ -127,6 +127,7 @@ static struct BVHTree {
 	
 	}
 
+
 	void print_stats() {
 		int count_nodes = 0;
 		int max_triangles_per_node = 0;
@@ -202,6 +203,17 @@ static struct BVHTree {
 		max.z = fmaxf(max.z, vertex.z);
 	}
 
+	float cost() {
+		if (triangle_indices.size() == 0)
+			return FLT_MAX;
+
+
+		float3 size = max - min;
+		
+		float half_area = size.x * (size.y + size.z) + size.y * size.z;
+		return half_area * triangle_indices.size();
+	}
+
 	void fill(int depth, int max_depth)
 	{
 
@@ -215,25 +227,35 @@ static struct BVHTree {
 
 		if (triangle_indices.size() <= 1)
 			return;
-		
 
 
-		float3 mid = (min + max) / 2.0f;
+		std::pair<float, float> x_eval = evaluate_split("x");
+		std::pair<float, float> y_eval = evaluate_split("y");
+		std::pair<float, float> z_eval = evaluate_split("z");
+
+
+
+
+		std::string axis;
+		float split_pos;
+
+
+		if (x_eval.first < y_eval.first && x_eval.first < z_eval.first) {
+			axis = "x";
+			split_pos = x_eval.second;
+		}
+		else if (y_eval.first < x_eval.first && y_eval.first < z_eval.first) {
+			axis = "y";
+			split_pos = y_eval.second;
+		}
+		else {
+			axis = "z";
+			split_pos = z_eval.second;
+		}
+
 
 		std::vector<int> left_indices;
 		std::vector<int> right_indices;
-
-		std::string check = "x";
-
-		if (max.y - min.y > max.x - min.x && max.y - min.y > max.z - min.z) {
-			check = "y";
-		}
-
-		else if (max.z - min.z > max.x - min.x && max.z - min.z > max.y - min.y) {
-			check = "z";
-		}
-
-		
 
 		for (int i = 0; i < triangle_indices.size(); i++) {
 			int idx = triangle_indices[i];
@@ -242,26 +264,18 @@ static struct BVHTree {
 			float3 triangle_center = triangle.center();
 
 			//default to x
-			float mid_check = mid.x;
 			float tri_check = triangle_center.x;
 
-
-			if (check == "y")
+			if (axis == "y")
 			{
-				mid_check = mid.y;
-
 				tri_check = triangle_center.y;
 			}
-			else if (check == "z") {
-				mid_check = mid.z;
-
+			else if (axis == "z") {
 				tri_check = triangle_center.z;
 			}
 
 
-
-			// We want triangles to be in both children if they are on the boundary
-			if (tri_check <= mid_check) {
+			if (tri_check <= split_pos) {
 				left_indices.push_back(idx);
 			}
 			else {
@@ -283,6 +297,76 @@ static struct BVHTree {
 
 
 	}
+
+	std::pair<float, float> evaluate_split(std::string axis)
+	{
+
+		float tests_per_axis = 5;
+		float best_cost = FLT_MAX;
+		float best_split = 0.0f;
+
+		for (int s = 0; s < tests_per_axis; s++) {
+
+			float split_t = ((float)s + 1) / (tests_per_axis + 1);
+
+			float min_check = min.x;
+			float max_check = max.x;
+
+			if (axis == "y")
+			{
+				min_check = min.y;
+				max_check = max.y;
+			}
+			else if (axis == "z") {
+				min_check = min.z;
+				max_check = max.z;
+			}
+
+			float pos = min_check + (max_check - min_check) * (split_t);
+
+
+			BVHTree left;
+			BVHTree right;
+
+			for (int i = 0; i < triangle_indices.size(); i++) {
+				int idx = triangle_indices[i];
+				TrianglePrimitive triangle = master_list_triangles[idx];
+
+				float3 triangle_center = triangle.center();
+
+				//default to x
+				float tri_check = triangle_center.x;
+
+				if (axis == "y")
+					tri_check = triangle_center.y;
+				else if (axis == "z") 
+					tri_check = triangle_center.z;
+				
+
+				if (tri_check <= pos) {
+					left.grow_to_include(triangle);
+					left.triangle_indices.push_back(idx);
+				}
+				else {
+					right.grow_to_include(triangle);
+					right.triangle_indices.push_back(idx);
+				}
+
+			}
+
+
+			float cost = left.cost() + right.cost();
+
+			if (cost < best_cost) {
+				best_cost = cost;
+				best_split = pos;
+			}
+		}
+
+		return std::make_pair(best_cost, best_split);
+
+	}
+
 
 	static d_BVHTree* compile_tree(BVHTree& top) {
 		// Allocate host memory for an array of device-compatible d_BVHTree structures
