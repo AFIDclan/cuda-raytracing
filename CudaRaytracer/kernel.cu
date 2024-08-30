@@ -35,7 +35,7 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
 
 	Ray ray(origin, direction, make_uint2(x, y));
 
-    float hit_min = -1.0f;
+    float hit_min = FLT_MAX;
     uchar3 color = make_uchar3(0, 0, 0);
 
 
@@ -50,50 +50,52 @@ __global__ void raytrace(uchar3* img, int width, int height, size_t pitch, const
         int node_index = stack[--stack_index];
         d_BVHTree current_bvh = bvh_tree[node_index];
 
-        // Check if the current node intersects with the ray
-		float bb_dist = current_bvh.ray_intersects(ray);
-        if (bb_dist < FLT_MAX) {
+		// We are assuming this ray intersects with the bounding box of the node since it was pushed onto the stack
 
-			// If the current node is further than the closest hit, skip it
-			if (bb_dist > hit_min && hit_min != -1.0f) {
-				continue;
+        if (current_bvh.child_index_a > 0) {
+            // If the node has children, push them onto the stack
+                
+			float dist_a = bvh_tree[current_bvh.child_index_a].ray_intersects(ray);
+			float dist_b = bvh_tree[current_bvh.child_index_b].ray_intersects(ray);
+
+            if (dist_a < dist_b) {
+                if (dist_b < hit_min) stack[stack_index++] = current_bvh.child_index_b;
+                if (dist_a < hit_min) stack[stack_index++] = current_bvh.child_index_a;
 			}
+			else {
+                if (dist_a < hit_min) stack[stack_index++] = current_bvh.child_index_a;
+                if (dist_b < hit_min) stack[stack_index++] = current_bvh.child_index_b;
+			}
+                
+                
+        }
+        else {
+            // Leaf node: check for intersections with triangles
+            for (int i = 0; i < current_bvh.count_triangles; i++) {
+                int index = current_bvh.triangle_indices[i];
 
-            if (current_bvh.child_index_a > 0) {
-                // If the node has children, push them onto the stack
+                float3 intersection = triangles[index].ray_intersect(ray);
 
-				// TODO: Push the closest child first
-                stack[stack_index++] = current_bvh.child_index_b;
-                stack[stack_index++] = current_bvh.child_index_a;
-            }
-            else {
-                // Leaf node: check for intersections with triangles
-               for (int i = 0; i < current_bvh.count_triangles; i++) {
-                    int index = current_bvh.triangle_indices[i];
+				// If the intersection is at FLT_MAX, the ray did not intersect with the triangle
+                if (intersection.x == FLT_MAX)
+                    continue;
 
-                    float3 intersection = triangles[index].ray_intersect(ray);
+                bool inside = triangles[index].point_inside(intersection);
 
-					// If the intersection is at FLT_MAX, then the ray did not intersect with the triangle
-                    if (intersection.x == FLT_MAX)
-                        continue;
+                if (inside) {
+                    float distance = magnitude(intersection - ray.origin);
 
-                    bool inside = triangles[index].point_inside(intersection);
-
-                    if (inside) {
-                        float distance = magnitude(intersection - ray.origin);
-
-                        if (hit_min == -1.0f || distance < hit_min) {
-                            hit_min = distance;
-                            float brightness = dot(ray.direction, triangles[index].normal);
-                            color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
-                        }
+                    if (hit_min == -1.0f || distance < hit_min) {
+                        hit_min = distance;
+                        float brightness = dot(ray.direction, triangles[index].normal);
+                        color = make_uchar3(brightness * triangles[index].color.x, brightness * triangles[index].color.y, brightness * triangles[index].color.z);
                     }
-               }
+                }
             }
         }
     }
 
-    if (hit_min > 0.0f) {
+    if (hit_min != FLT_MAX) {
         uchar3* row = (uchar3*)((char*)img + y * pitch);
         row[x] = color;
     }
@@ -170,6 +172,7 @@ int main() {
     cudaMalloc(&d_triangles, teapot.num_triangles * sizeof(TrianglePrimitive));
     cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
+    teapot.bvh_top.print_stats();
 
     d_BVHTree* d_bvh_tree = BVHTree::compile_tree(teapot.bvh_top);
 

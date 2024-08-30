@@ -109,11 +109,79 @@ static struct BVHTree {
 	}
 
 	d_BVHTree to_device_compatible() {
-		int* d_triangle_list;
-		cudaMalloc(&d_triangle_list, triangle_indices.size() * sizeof(int));
-		cudaMemcpy(d_triangle_list, triangle_indices.data(), triangle_indices.size() * sizeof(int), cudaMemcpyHostToDevice);
+		
+		// Only copy the triangle indices if this is a leaf node
+		if (child_index_a != -1 || child_index_b != -1) {
 
-		return d_BVHTree(min, max, child_index_a, child_index_b, d_triangle_list, triangle_indices.size());
+			return d_BVHTree(min, max, child_index_a, child_index_b, nullptr, 0);
+		}
+		else {
+
+			int* d_triangle_list;
+			cudaMalloc(&d_triangle_list, triangle_indices.size() * sizeof(int));
+			cudaMemcpy(d_triangle_list, triangle_indices.data(), triangle_indices.size() * sizeof(int), cudaMemcpyHostToDevice);
+
+			return d_BVHTree(min, max, child_index_a, child_index_b, d_triangle_list, triangle_indices.size());
+		}
+
+	
+	}
+
+	void print_stats() {
+		int count_nodes = 0;
+		int max_triangles_per_node = 0;
+		int min_triangles_per_node = 1000000;
+		int max_depth = 0;
+		int count_leaves = 0;
+
+		
+
+		std::vector<BVHTree*> stack;
+
+		stack.push_back(this);
+
+
+		while (stack.size() > 0) {
+			BVHTree* node = stack.back();
+			stack.pop_back();
+
+			max_depth = fmaxf(max_depth, stack.size());
+
+			count_nodes++;
+
+			if (node->child_index_a == -1)
+			{
+				if (node->triangle_indices.size() > max_triangles_per_node) {
+					max_triangles_per_node = node->triangle_indices.size();
+				}
+
+				if (node->triangle_indices.size() < min_triangles_per_node) {
+					min_triangles_per_node = node->triangle_indices.size();
+				}
+
+				count_leaves++;
+
+			}
+			
+
+			if (node->child_index_a != -1) {
+				stack.push_back(master_list_trees->at(node->child_index_a));
+				stack.push_back(master_list_trees->at(node->child_index_b));
+			}
+
+		}
+
+		float avg_tris_per_leaf = (float)triangle_indices.size() / (float)count_leaves;
+
+		std::cout << "BVH Stats: " << std::endl;
+		std::cout << "Number of nodes: " << count_nodes << std::endl;
+		std::cout << "Max triangles per node: " << max_triangles_per_node << std::endl;
+		std::cout << "Min triangles per node: " << min_triangles_per_node << std::endl;
+		std::cout << "Max depth: " << max_depth << std::endl;
+		std::cout << "Number of leaves: " << count_leaves << std::endl;
+		std::cout << "Average triangles per leaf: " << avg_tris_per_leaf << std::endl;
+
+
 	}
 
 
