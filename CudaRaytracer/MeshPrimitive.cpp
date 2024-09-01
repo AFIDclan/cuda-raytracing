@@ -42,6 +42,14 @@ d_MeshPrimitive* MeshPrimitive::to_device()
 
 	lre inv_pose = invert_lre(this->pose);
 
+
+	std::cout << "Mesh pose: \n";
+	print(this->pose);
+
+	std::cout << "Inverse pose: \n";
+	print(inv_pose);
+
+
 	d_MeshPrimitive* host_mesh = new d_MeshPrimitive(this->num_triangles, d_triangles, d_bvh_tree, inv_pose);
 
 	d_MeshPrimitive* d_mesh;

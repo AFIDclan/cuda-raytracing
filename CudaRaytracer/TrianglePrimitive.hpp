@@ -7,12 +7,12 @@
 struct TrianglePrimitive {
     float3 vertices[3];
     float3 normal;
-    uchar3 color;
+    float3 color;
 	float area;
 
 
     // Constructor
-    __host__ __device__ TrianglePrimitive(float3 a, float3 b, float3 c, uchar3 color)
+    __host__ __device__ TrianglePrimitive(float3 a, float3 b, float3 c, float3 color)
         : color(color) {
         vertices[0] = a;
         vertices[1] = b;
@@ -26,7 +26,7 @@ struct TrianglePrimitive {
     }
 
 
-    __host__ __device__ TrianglePrimitive(float3 a, float3 b, float3 c, float3 normal, uchar3 color)
+    __host__ __device__ TrianglePrimitive(float3 a, float3 b, float3 c, float3 normal, float3 color)
         : normal(normal), color(color) {
         vertices[0] = a;
         vertices[1] = b;
@@ -38,7 +38,7 @@ struct TrianglePrimitive {
         area = 0.5f * magnitude(cross(v0, v1));
     }
 
-    __host__ __device__ TrianglePrimitive() : normal(make_float3(0.0f, 0.0f, 0.0f)), color(make_uchar3(255, 255, 255)) {
+    __host__ __device__ TrianglePrimitive() : normal(make_float3(0.0f, 0.0f, 0.0f)), color(make_float3(1.0, 1.0, 1.0)) {
         vertices[0] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[1] = make_float3(0.0f, 0.0f, 0.0f);
         vertices[2] = make_float3(0.0f, 0.0f, 0.0f);
