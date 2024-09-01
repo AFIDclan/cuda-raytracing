@@ -7,15 +7,13 @@ MeshPrimitive::MeshPrimitive(std::vector<TrianglePrimitive> triangles)
 	this->triangles = new TrianglePrimitive[triangles.size()];
 	this->num_triangles = triangles.size();
 
-	this->world_triangles = new TrianglePrimitive[this->num_triangles];
-
 	for (int i = 0; i < triangles.size(); i++) {
 		this->triangles[i] = triangles[i];
 	}
 
 	this->pose = lre();
 
-	this->genarate_world_triangles();
+	this->build_bvh();
 }
 
 void MeshPrimitive::set_world_rotation(float3 rotation)
@@ -23,8 +21,6 @@ void MeshPrimitive::set_world_rotation(float3 rotation)
 	this->pose.yaw = rotation.x;
 	this->pose.pitch = rotation.y;
 	this->pose.roll = rotation.z;
-
-	this->genarate_world_triangles();
 }
 
 void MeshPrimitive::set_world_position(float3 position)
@@ -33,27 +29,33 @@ void MeshPrimitive::set_world_position(float3 position)
 	this->pose.y = position.y;
 	this->pose.z = position.z;
 
-	this->genarate_world_triangles();
 }
 
-void MeshPrimitive::genarate_world_triangles()
+d_MeshPrimitive* MeshPrimitive::to_device()
 {
 
-	lre local2world = invert_lre(this->pose);
-	//lre local2world = this->pose;
+	d_BVHTree* d_bvh_tree = BVHTree::compile_tree(this->bvh_top);
 
-	for (int i = 0; i < this->num_triangles; i++) {
-		TrianglePrimitive triangle = this->triangles[i];
+	TrianglePrimitive* d_triangles;
+	cudaMalloc(&d_triangles, this->num_triangles * sizeof(TrianglePrimitive));
+	cudaMemcpy(d_triangles, this->triangles, this->num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
+	lre inv_pose = invert_lre(this->pose);
 
-		float3 a = apply_lre(local2world, triangle.vertices[0]);
-		float3 b = apply_lre(local2world, triangle.vertices[1]);
-		float3 c = apply_lre(local2world, triangle.vertices[2]);
+	d_MeshPrimitive* host_mesh = new d_MeshPrimitive(this->num_triangles, d_triangles, d_bvh_tree, inv_pose);
 
-		float3 normal = apply_rotmat(euler2rotmat(make_float3(local2world.yaw, local2world.pitch, local2world.roll)), triangle.normal);
+	d_MeshPrimitive* d_mesh;
 
-		this->world_triangles[i] = TrianglePrimitive(a, b, c, normal, triangle.color);
-	}
+	cudaMalloc(&d_mesh, sizeof(d_MeshPrimitive));
+	cudaMemcpy(d_mesh, host_mesh, sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
+
+	delete host_mesh;
+
+	return d_mesh;
+}
+
+void MeshPrimitive::build_bvh()
+{
 
 	std::vector<BVHTree*>* master_list_trees = new std::vector<BVHTree*>();
 
@@ -63,11 +65,11 @@ void MeshPrimitive::genarate_world_triangles()
 		triangle_indices.push_back(i);
 	}
 
-	this->bvh_top = BVHTree(master_list_trees, this->world_triangles, triangle_indices);
+	this->bvh_top = BVHTree(master_list_trees, this->triangles, triangle_indices);
 
 	master_list_trees->push_back(&this->bvh_top);
 
-	// Fill without recursion
+	// Recursively build the BVH tree
 	this->bvh_top.fill(1, 32);
 
 }
