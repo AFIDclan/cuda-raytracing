@@ -11,6 +11,7 @@
 #include "MeshPrimitive.h"
 
 #include "OBJLoader.hpp"
+#include <windows.h> // For SetCursorPos
 
 
 __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
@@ -109,8 +110,10 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
 
         ray.origin = hit_location;
 
+        float3 norm = hit_normal * -1;
         // Reflect around normal
-        ray.direction = (ray.direction - (2 * dot(ray.direction, hit_normal))) * hit_normal;
+        ray.direction = (ray.direction - (2 * dot(ray.direction, norm))) * norm;
+        //ray.direction = hit_normal * -1;
 
         // Move just slightly so we don't capture the face we just hit
         ray.origin = ray.origin + ray.direction * 1e-4;
@@ -202,6 +205,45 @@ void display_image(uchar3* d_img, int width, int height, size_t pitch, double fp
     }
 }
 
+struct MouseParams
+{
+    int last_x;
+    int last_y;
+    bool has_last = false;
+
+    bool is_down = false;
+
+    lre *pose;
+};
+
+void on_mouse(int event, int x, int y, int, void* param)
+{
+    // Cast the param back to the correct type
+    MouseParams* mouse_state = static_cast<MouseParams*>(param);
+    if (event == cv::EVENT_LBUTTONDOWN)
+    {
+        mouse_state->is_down = true;
+    } else if (event == cv::EVENT_LBUTTONUP)
+    {
+        mouse_state->is_down = false;
+    } else if (event == cv::EVENT_MOUSEMOVE)
+    {
+        
+        if (mouse_state->has_last && mouse_state->is_down)
+        {
+            int dx = x - mouse_state->last_x;
+            int dy = y - mouse_state->last_y;
+
+            mouse_state->pose->yaw += dx * -0.001;
+            mouse_state->pose->pitch += dy * 0.001;
+        }
+
+        mouse_state->last_x = x;
+        mouse_state->last_y = y;
+        mouse_state->has_last = true;
+    }
+}
+
 int main() {
 
 	//transforms::test_all();
@@ -231,8 +273,10 @@ int main() {
 
 
     camera_pose.x = 0;
-    camera_pose.y = 0;
+    camera_pose.y = -8;
     camera_pose.z = 0;
+
+
 
 
 
@@ -261,6 +305,11 @@ int main() {
 
 	float angle = 0.0f;
 
+    MouseParams mouse_state;
+    mouse_state.pose = &camera_pose;
+    cv::namedWindow("Image");
+    cv::setMouseCallback("Image", on_mouse, &mouse_state);
+
     // Loop while program is running
     while (true) {
 
@@ -274,11 +323,11 @@ int main() {
         //teapot.set_world_rotation(make_float3(0, angle, 0));
         //cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
-        camera_pose.x = sin(angle) * 12;
-        camera_pose.y = cos(angle) * 12;
-        camera_pose.z = 2;
+        //camera_pose.x = sin(angle) * 12;
+        //camera_pose.y = cos(angle) * 12;
+        //camera_pose.z = 2;
 
-        camera_pose.yaw = -angle + 3.141592;
+        //camera_pose.yaw = -angle + 3.141592;
 
 
         // Launch the CUDA kernel to invert colors
