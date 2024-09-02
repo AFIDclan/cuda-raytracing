@@ -14,14 +14,25 @@ struct d_MeshPrimitive {
 	int num_triangles;
 	TrianglePrimitive* triangles;
 	d_BVHTree* bvh_top;
+	lre pose;
 	lre inv_pose;
+
+	float3 rotation;
+	float3 inv_rotation;
 
 	__host__ __device__ d_MeshPrimitive() {
 		num_triangles = 0;
 		triangles = nullptr;
 	}
 
-	__host__ __device__ d_MeshPrimitive(int num_triangles, TrianglePrimitive* triangles, d_BVHTree* bvh_top, lre inv_pose) : num_triangles(num_triangles), triangles(triangles), bvh_top(bvh_top), inv_pose(inv_pose) {}
+	__host__ __device__ d_MeshPrimitive(int num_triangles, TrianglePrimitive* triangles, d_BVHTree* bvh_top, lre pose) : num_triangles(num_triangles), triangles(triangles), bvh_top(bvh_top), pose(pose) {
+		rotation = make_float3(pose.yaw, pose.pitch, pose.roll);
+
+		inv_pose = invert_lre(this->pose);
+		inv_rotation = make_float3(inv_pose.yaw, inv_pose.pitch, inv_pose.roll);
+
+
+	}
 };
 
 class MeshPrimitive

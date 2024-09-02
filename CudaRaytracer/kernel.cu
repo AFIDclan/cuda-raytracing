@@ -25,13 +25,11 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
     for (int mesh_idx = 0; mesh_idx < num_meshes; mesh_idx++) {
         d_MeshPrimitive mesh = meshes[mesh_idx];
 
-        //Rotate camera ray by the inverse of the mesh rotation
-        //float3 r_direction = apply_euler(make_float3(-mesh.inv_pose.yaw, -mesh.inv_pose.pitch, -mesh.inv_pose.roll), ray.direction);
-        float3 r_direction = ray.direction;
+        // Express the ray direction in mesh coordinates
+        float3 r_direction = apply_euler(mesh.rotation, ray.direction);
 
-        // Apply the inverse of the mesh's pose to the ray. Effectively putting the ray origin where it would need to be to make the mesh at 0, 0, 0
-        //float3 r_origin = make_float3(mesh.inv_pose.x + ray.origin.x, mesh.inv_pose.y + ray.origin.y, mesh.inv_pose.z + ray.origin.z);
-        float3 r_origin = ray.origin;
+        // Express the ray origin in mesh coordinates
+        float3 r_origin = apply_lre(mesh.pose, ray.origin);
 
         Ray r_ray = Ray(
             r_origin,
@@ -89,13 +87,12 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
                             hit_min = distance;
                             hit_triangle = mesh.triangles[index];
                             
-                            // Unshift the ray
-                            //hit_location = make_float3(intersection.x - mesh.inv_pose.x, intersection.y - mesh.inv_pose.y, intersection.z - mesh.inv_pose.z);
-                            hit_location = intersection;
 
-                            // Unrotate the normal
-                            //hit_normal = apply_euler(make_float3(mesh.inv_pose.yaw, mesh.inv_pose.pitch, mesh.inv_pose.roll), hit_triangle.normal);
-                            hit_normal = hit_triangle.normal;
+                            // Express normal in world coordinates
+                            hit_normal = apply_euler(mesh.inv_rotation, hit_triangle.normal);
+
+                            // Express the location in world coordinates
+                            hit_location = apply_lre(mesh.inv_pose, intersection);
                         }
                     }
                 }
@@ -110,7 +107,7 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
 
         ray.origin = hit_location;
 
-        float3 norm = hit_normal * -1;
+        float3 norm = hit_normal;// * -1;
         // Reflect around normal
         ray.direction = (ray.direction - (2 * dot(ray.direction, norm))) * norm;
         //ray.direction = hit_normal * -1;
@@ -170,7 +167,15 @@ __global__ void render(uchar3* img, int width, int height, size_t pitch, const f
 
         ray = raytrace(ray, meshes, num_meshes);
     }
+
     
+    //ray = raytrace(ray, meshes, num_meshes);
+
+    //if (!ray.terminated)
+    //{
+    //    ray.illumination = dot(ray.direction, direction);
+    //}
+   
 
     uchar3* row = (uchar3*)((char*)img + y * pitch);
     row[x].x = (ray.color.x * ray.illumination * 255);
@@ -280,18 +285,27 @@ int main() {
 
 
 
-    MeshPrimitive teapot = OBJLoader::load("./cow.obj");
+    MeshPrimitive cow = OBJLoader::load("./cow.obj");
+
+    cow.set_world_position(make_float3(4, 0, 0));
+    cow.set_world_rotation(make_float3(0, 3.141592 / 2, 0));
+
+    MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
+    teapot.set_world_position(make_float3(-4, 0, 0));
+    teapot.set_world_rotation(make_float3(0, 3.141592 / 2, 0));
+
     //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
 
 	//teapot.set_world_position(make_float3(0, 0, 8));
 	//teapot.set_world_position(make_float3(0, 8, -2));
-	teapot.set_world_position(make_float3(0, 0, 0));
-	//teapot.set_world_rotation(make_float3(0, 3.141592/2, 0));
-	teapot.set_world_rotation(make_float3(0, 0, 0));
+
+	//teapot.set_world_rotation(make_float3(0, 0, 0));
 
     teapot.bvh_top.print_stats();
 
-	d_MeshPrimitive* d_teapot = teapot.to_device();
+    d_MeshPrimitive* d_meshes[2];
+    d_meshes[0] = teapot.to_device();
+    d_meshes[1] = cow.to_device();
 
 
     // Allocate CUDA memory for the image
@@ -321,7 +335,7 @@ int main() {
 
 
         //teapot.set_world_rotation(make_float3(0, angle, 0));
-        //cudaMemcpy(d_triangles, teapot.world_triangles, teapot.num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
+        //d_MeshPrimitive* d_teapot = teapot.to_device();
 
         //camera_pose.x = sin(angle) * 12;
         //camera_pose.y = cos(angle) * 12;
@@ -331,7 +345,7 @@ int main() {
 
 
         // Launch the CUDA kernel to invert colors
-        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_teapot, 1);
+        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_meshes[0], 1);
         cudaDeviceSynchronize();
 
         // End measuring time
