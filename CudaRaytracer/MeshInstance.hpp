@@ -6,6 +6,7 @@
 struct MeshInstance {
 
     int mesh_index;
+	int material_index;
 
     lre pose;
     lre inv_pose;
@@ -18,8 +19,8 @@ struct MeshInstance {
 
 	__host__ __device__ MeshInstance() : mesh_index(-1) {}
 
-	__host__ __device__ MeshInstance(int mesh_index)
-		: mesh_index(mesh_index) {
+	__host__ __device__ MeshInstance(int mesh_index, int material_index)
+		: mesh_index(mesh_index), material_index(material_index){
 
 		scale = make_float3(1.0f, 1.0f, 1.0f);
 
@@ -27,8 +28,8 @@ struct MeshInstance {
 
 	}
 
-	__host__ __device__ MeshInstance(int mesh_index, lre pose, float3 scale)
-		: mesh_index(mesh_index), pose(pose), scale(scale) {
+	__host__ __device__ MeshInstance(int mesh_index, int material_index, lre pose, float3 scale)
+		: mesh_index(mesh_index), material_index(material_index), pose(pose), scale(scale) {
 		
 		this->build_inv();
 

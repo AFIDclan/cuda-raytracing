@@ -10,23 +10,43 @@
 #include "TrianglePrimitive.hpp"
 #include "MeshPrimitive.h"
 #include "MeshInstance.hpp"
+#include "Material.hpp"
+#include <curand_kernel.h>
+
 
 #include "OBJLoader.hpp"
 #include <windows.h> // For SetCursorPos
 
+__device__ float3 random_vector3(curandState* state) {
+    // Generate random floats in the range [0, 1)
+    float x = curand_uniform(state);
+    float y = curand_uniform(state);
+    float z = curand_uniform(state);
 
-__device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes)
+    // Scale and shift to the range [-0.5, 0.5]
+    x = x - 0.5f;
+    y = y - 0.5f;
+    z = z - 0.5f;
+
+    return make_float3(x, y, z);
+}
+
+
+__device__ Ray& raytrace(Ray& ray, curandState* state, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes, Material* materials)
 {
 
     float hit_min = FLT_MAX;
     TrianglePrimitive hit_triangle;
+
     float3 hit_location;
     float3 hit_normal;
+    Material hit_material;
 
     for (int mesh_idx = 0; mesh_idx < num_mesh_instances; mesh_idx++) {
 
 		MeshInstance mesh_instance = mesh_instances[mesh_idx];
         d_MeshPrimitive mesh = meshes[mesh_instance.mesh_index];
+		Material material = materials[mesh_instance.material_index];
 
         // Express the ray direction in mesh coordinates
         float3 r_direction = apply_euler(mesh_instance.rotation, ray.direction);
@@ -119,6 +139,8 @@ __device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_in
                             hit_location.x *= mesh_instance.scale.x;
                             hit_location.y *= mesh_instance.scale.y;
                             hit_location.z *= mesh_instance.scale.z;
+
+							hit_material = material;
                         }
                     }
                 }
@@ -132,8 +154,13 @@ __device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_in
 		// Move the ray to the hit location
         ray.origin = hit_location;
 
+		float3 random_dir = random_vector3(state) * hit_material.roughness;
+
+		// Calculate the normal at the hit location
+		float3 random_normal = normalize(hit_normal + random_dir);
+
         // Reflect around normal
-        ray.direction = ray.direction - (2.0f * (dot(ray.direction, hit_normal) * hit_normal));
+        ray.direction = ray.direction - (2.0f * (dot(ray.direction, random_normal) * random_normal));
 		
 		// Calculate the inverse of the direction
 		ray.direction_inv.x = 1.0f / ray.direction.x;
@@ -144,13 +171,22 @@ __device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_in
         // Move just slightly so we don't capture the face we just hit
         ray.origin = ray.origin + ray.direction * 1e-4;
 
-		// Calculate the loss of light due to the angle of incidence
+        // Calculate the loss of light due to the angle of incidence
         float cos_illum = dot(hit_normal, ray.direction);
 
-		// Apply the color of the triangle to the ray
-        ray.color.x *= (hit_triangle.color.x * cos_illum);
-        ray.color.y *= (hit_triangle.color.y * cos_illum);
-        ray.color.z *= (hit_triangle.color.z * cos_illum);
+		if (hit_material.illumination > 0.0) {
+			ray.illumination = hit_material.illumination;
+            ray.terminated = true;
+
+			// If the material is a light source we assume it emits equally in all directions
+			cos_illum = 1.0;
+		}
+
+
+        // Apply the color of the triangle to the ray
+        ray.color.x *= (hit_material.albedo.x * cos_illum);
+        ray.color.y *= (hit_material.albedo.y * cos_illum);
+        ray.color.z *= (hit_material.albedo.z * cos_illum);
 
 
      } else {
@@ -159,7 +195,7 @@ __device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_in
         ray.color.y *= 0.8;
         ray.color.z *= 0.6;
 
-        ray.illumination = 1.0;
+        ray.illumination = 0.5;
 
         ray.terminated = true;
     }
@@ -169,7 +205,7 @@ __device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_in
 
 
 // Simple CUDA kernel to invert image colors
-__global__ void render(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes) {
+__global__ void render(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes, Material* materials) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -198,12 +234,17 @@ __global__ void render(uchar3* img, int width, int height, size_t pitch, const f
         make_uint2(x, y)
     );
 
+	long long seed = (y * width + x) * 1000;
+
+	curandState state;
+	curand_init(seed, 0, 0, &state);
+
     for (int i = 0; i < 4; i++)
     {
         if (ray.terminated)
             break;
 
-        ray = raytrace(ray, mesh_instances, num_mesh_instances, meshes);
+        ray = raytrace(ray, &state, mesh_instances, num_mesh_instances, meshes, materials);
     }
 
     
@@ -320,7 +361,29 @@ int main() {
     camera_pose.z = 0;
 
 
+	Material glossy_red = Material();
 
+	glossy_red.albedo = make_float3(0.1, 0.2, 0.9);
+	glossy_red.roughness = 0.01;
+
+
+    Material matte_green = Material();
+
+    matte_green.albedo = make_float3(0.15, 0.9, 0.1);
+    matte_green.roughness = 0.3;
+
+	Material light = Material();
+
+	light.illumination = 1.0;
+	light.albedo = make_float3(1.0, 1.0, 1.0);
+
+    Material* d_materials;
+
+    cudaMalloc(&d_materials, sizeof(Material) * 3);
+
+    cudaMemcpy(&d_materials[0], glossy_red.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_materials[1], matte_green.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_materials[2], light.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
 
 
     MeshPrimitive cow = OBJLoader::load("./cow.obj");
@@ -337,37 +400,43 @@ int main() {
     cudaMemcpy(&d_meshes[1], teapot.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
     cudaMemcpy(&d_meshes[2], cube.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
 
-	MeshInstance cow_instance = MeshInstance(0);
+	MeshInstance cow_instance = MeshInstance(0, 1);
 
     cow_instance.pose.x = -2;
 	cow_instance.pose.pitch = 3.141592 / 2;
     cow_instance.scale = make_float3(0.2, 0.2, 0.2);
 
 
-    MeshInstance cube_instance = MeshInstance(2);
+    MeshInstance cube_instance = MeshInstance(2, 1);
 
     cube_instance.pose.z = -2;
     cube_instance.scale = make_float3(10.0, 10.0, 1.0);
 
-	MeshInstance teapot_instance = MeshInstance(1);
+	MeshInstance teapot_instance = MeshInstance(1, 0);
 
 	teapot_instance.pose.x = 2;
 	teapot_instance.pose.pitch = 3.141592 / 2;
 
-	
+
+    MeshInstance light_instance = MeshInstance(2, 2);
+
+    light_instance.pose.z = 30;
+    light_instance.scale = make_float3(10.0, 10.0, 1.0);
 
     cow_instance.build_inv();
     cube_instance.build_inv();
 	teapot_instance.build_inv();
+    light_instance.build_inv();
 
 
 	MeshInstance* d_mesh_instances;
 
-	cudaMalloc(&d_mesh_instances, sizeof(MeshInstance) * 3);
+	cudaMalloc(&d_mesh_instances, sizeof(MeshInstance) * 4);
 
 	cudaMemcpy(&d_mesh_instances[0], &cow_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_mesh_instances[1], &cube_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_mesh_instances[3], &light_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 
 
 
@@ -414,7 +483,7 @@ int main() {
         cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 
         // Launch the CUDA kernel to invert colors
-        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_mesh_instances, 3, d_meshes);
+        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_mesh_instances, 4, d_meshes, d_materials);
         cudaDeviceSynchronize();
 
         // End measuring time

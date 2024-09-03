@@ -70,7 +70,7 @@ namespace OBJLoader
 			float3 b = vertices[face.y];
 			float3 c = vertices[face.z];
 
-			triangles.push_back(TrianglePrimitive(a, b, c, make_float3(0.8f, 0.8f, 0.8f)));
+			triangles.push_back(TrianglePrimitive(a, b, c));
 		}
 
 		return MeshPrimitive(triangles);

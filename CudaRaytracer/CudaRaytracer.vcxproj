@@ -81,6 +81,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BVHTree.hpp" />
+    <ClInclude Include="Material.hpp" />
     <ClInclude Include="MeshInstance.hpp" />
     <ClInclude Include="MeshPrimitive.h" />
     <ClInclude Include="OBJLoader.hpp" />
