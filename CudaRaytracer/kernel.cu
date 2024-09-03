@@ -325,28 +325,29 @@ int main() {
 
     MeshPrimitive cow = OBJLoader::load("./cow.obj");
     MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
+    MeshPrimitive cube = OBJLoader::load("./cube.obj");
 
     teapot.bvh_top.print_stats();
 
     d_MeshPrimitive* d_meshes;
 
-    cudaMalloc(&d_meshes, sizeof(d_MeshPrimitive) * 2);
+    cudaMalloc(&d_meshes, sizeof(d_MeshPrimitive) * 3);
 
     cudaMemcpy(&d_meshes[0], cow.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
     cudaMemcpy(&d_meshes[1], teapot.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_meshes[2], cube.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
 
 	MeshInstance cow_instance = MeshInstance(0);
 
     cow_instance.pose.x = -2;
 	cow_instance.pose.pitch = 3.141592 / 2;
-    cow_instance.scale = make_float3(0.2, 1.0, 0.2);
+    cow_instance.scale = make_float3(0.2, 0.2, 0.2);
 
 
-    MeshInstance cow_instance_2 = MeshInstance(0);
+    MeshInstance cube_instance = MeshInstance(2);
 
-    cow_instance_2.pose.x = -3;
-    cow_instance_2.pose.pitch = 3.141592 / 2;
-    cow_instance_2.scale = make_float3(0.3, 0.3, 0.3);
+    cube_instance.pose.z = -2;
+    cube_instance.scale = make_float3(10.0, 10.0, 1.0);
 
 	MeshInstance teapot_instance = MeshInstance(1);
 
@@ -356,7 +357,7 @@ int main() {
 	
 
     cow_instance.build_inv();
-	cow_instance_2.build_inv();
+    cube_instance.build_inv();
 	teapot_instance.build_inv();
 
 
@@ -365,7 +366,7 @@ int main() {
 	cudaMalloc(&d_mesh_instances, sizeof(MeshInstance) * 3);
 
 	cudaMemcpy(&d_mesh_instances[0], &cow_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_mesh_instances[1], &cow_instance_2, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_mesh_instances[1], &cube_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 
 
@@ -404,10 +405,8 @@ int main() {
 
 		angle += 0.005f;
 
-
         // Start measuring time
         start_time = cv::getTickCount();
-
 
         teapot_instance.pose.yaw = angle;
 		teapot_instance.build_inv();
