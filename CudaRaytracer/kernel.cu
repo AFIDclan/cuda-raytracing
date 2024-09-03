@@ -318,9 +318,13 @@ int main() {
 
     teapot.bvh_top.print_stats();
 
-    d_MeshPrimitive* d_meshes[2];
-    d_meshes[0] = teapot.to_device();
-    d_meshes[1] = cow.to_device();
+    d_MeshPrimitive* d_meshes;
+
+    cudaMalloc(&d_meshes, sizeof(d_MeshPrimitive) * 2);
+
+    cudaMemcpy(&d_meshes[0], cow.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_meshes[1], teapot.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
+
 
 
     // Allocate CUDA memory for the image
@@ -360,7 +364,7 @@ int main() {
 
 
         // Launch the CUDA kernel to invert colors
-        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_meshes[0], 1);
+        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_meshes, 2);
         cudaDeviceSynchronize();
 
         // End measuring time
