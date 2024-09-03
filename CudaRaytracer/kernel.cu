@@ -9,12 +9,13 @@
 #include "Ray.hpp"
 #include "TrianglePrimitive.hpp"
 #include "MeshPrimitive.h"
+#include "MeshInstance.hpp"
 
 #include "OBJLoader.hpp"
 #include <windows.h> // For SetCursorPos
 
 
-__device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
+__device__ Ray& raytrace(Ray& ray, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes)
 {
 
     float hit_min = FLT_MAX;
@@ -22,24 +23,25 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
     float3 hit_location;
     float3 hit_normal;
 
-    for (int mesh_idx = 0; mesh_idx < num_meshes; mesh_idx++) {
-        d_MeshPrimitive mesh = meshes[mesh_idx];
+    for (int mesh_idx = 0; mesh_idx < num_mesh_instances; mesh_idx++) {
+
+		MeshInstance mesh_instance = mesh_instances[mesh_idx];
+        d_MeshPrimitive mesh = meshes[mesh_instance.mesh_index];
 
         // Express the ray direction in mesh coordinates
-        float3 r_direction = apply_euler(mesh.rotation, ray.direction);
+        float3 r_direction = apply_euler(mesh_instance.rotation, ray.direction);
 
-        //r_direction.x *= 2;
-        //r_direction.y *= 2;
-        //r_direction.z *= 2;
-
+        r_direction.x *= mesh_instance.inv_scale.x;
+        r_direction.y *= mesh_instance.inv_scale.y;
+        r_direction.z *= mesh_instance.inv_scale.z;
 
         // Express the ray origin in mesh coordinates
-        float3 r_origin = apply_lre(mesh.pose, ray.origin);
+        float3 r_origin = apply_lre(mesh_instance.pose, ray.origin);
 
         // Eg. Scale of 2 --> multiply the origin times 0.5 and make the object appear 2x the size
-        r_origin.x *= mesh.inv_scale.x;
-        r_origin.y *= mesh.inv_scale.y;
-        r_origin.z *= mesh.inv_scale.z;
+        r_origin.x *= mesh_instance.inv_scale.x;
+        r_origin.y *= mesh_instance.inv_scale.y;
+        r_origin.z *= mesh_instance.inv_scale.z;
 
         Ray r_ray = Ray(
             r_origin,
@@ -93,20 +95,30 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
                     if (inside) {
                         float distance = magnitude(intersection - r_ray.origin);
 
-                        if (hit_min == -1.0f || distance < hit_min) {
+						// Positive means the ray is facing the same direction as the normal and we hit the back of the triangle
+						float same_dir = dot(r_ray.direction, mesh.triangles[index].normal);
+
+                        if (same_dir < 0 && (hit_min == -1.0f || distance < hit_min)) {
                             hit_min = distance;
                             hit_triangle = mesh.triangles[index];
                             
 
                             // Express normal in world coordinates
-                            hit_normal = apply_euler(mesh.inv_rotation, hit_triangle.normal);
+                            hit_normal = apply_euler(mesh_instance.inv_rotation, hit_triangle.normal);
+
+                            hit_normal.x *= mesh_instance.scale.x;
+                            hit_normal.y *= mesh_instance.scale.y;
+                            hit_normal.z *= mesh_instance.scale.z;
+
+							// Scaling the direction can un-normalize it
+							hit_normal = normalize(hit_normal);
 
                             // Express the location in world coordinates
-                            hit_location = apply_lre(mesh.inv_pose, intersection);
+                            hit_location = apply_lre(mesh_instance.inv_pose, intersection);
 
-                            hit_location.x *= mesh.scale.x;
-                            hit_location.y *= mesh.scale.y;
-                            hit_location.z *= mesh.scale.z;
+                            hit_location.x *= mesh_instance.scale.x;
+                            hit_location.y *= mesh_instance.scale.y;
+                            hit_location.z *= mesh_instance.scale.z;
                         }
                     }
                 }
@@ -115,26 +127,37 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
     }
 
     if (hit_min != FLT_MAX) {
-        ray.color.x *= hit_triangle.color.x;
-        ray.color.y *= hit_triangle.color.y;
-        ray.color.z *= hit_triangle.color.z;
 
+		
+		// Move the ray to the hit location
         ray.origin = hit_location;
 
-        float3 norm = hit_normal;// * -1;
         // Reflect around normal
-        ray.direction = (ray.direction - (2 * dot(ray.direction, norm))) * norm;
-        //ray.direction = hit_normal * -1;
+        ray.direction = ray.direction - (2.0f * (dot(ray.direction, hit_normal) * hit_normal));
+		
+		// Calculate the inverse of the direction
+		ray.direction_inv.x = 1.0f / ray.direction.x;
+		ray.direction_inv.y = 1.0f / ray.direction.y;
+		ray.direction_inv.z = 1.0f / ray.direction.z;
+   
 
         // Move just slightly so we don't capture the face we just hit
         ray.origin = ray.origin + ray.direction * 1e-4;
 
+		// Calculate the loss of light due to the angle of incidence
+        float cos_illum = dot(hit_normal, ray.direction);
+
+		// Apply the color of the triangle to the ray
+        ray.color.x *= (hit_triangle.color.x * cos_illum);
+        ray.color.y *= (hit_triangle.color.y * cos_illum);
+        ray.color.z *= (hit_triangle.color.z * cos_illum);
+
 
      } else {
-
-        ray.color.x *= ray.direction.x;
-        ray.color.y *= ray.direction.y;
-        ray.color.z *= ray.direction.z;
+        // Pale blue sky
+        ray.color.x *= 1.0;
+        ray.color.y *= 0.8;
+        ray.color.z *= 0.6;
 
         ray.illumination = 1.0;
 
@@ -146,7 +169,7 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
 
 
 // Simple CUDA kernel to invert image colors
-__global__ void render(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, d_MeshPrimitive* meshes, int num_meshes) {
+__global__ void render(uchar3* img, int width, int height, size_t pitch, const float3x3 K_inv, const lre camera_pose, MeshInstance* mesh_instances, int num_mesh_instances, d_MeshPrimitive* meshes) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -180,7 +203,7 @@ __global__ void render(uchar3* img, int width, int height, size_t pitch, const f
         if (ray.terminated)
             break;
 
-        ray = raytrace(ray, meshes, num_meshes);
+        ray = raytrace(ray, mesh_instances, num_mesh_instances, meshes);
     }
 
     
@@ -301,20 +324,7 @@ int main() {
 
 
     MeshPrimitive cow = OBJLoader::load("./cow.obj");
-
-    cow.set_world_position(make_float3(4, 0, 0));
-    cow.set_world_rotation(make_float3(0, 3.141592 / 2, 0));
-
     MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
-    teapot.set_world_position(make_float3(-4, 0, 0));
-    teapot.set_world_rotation(make_float3(0, 3.141592 / 2, 0));
-
-    //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
-
-	//teapot.set_world_position(make_float3(0, 0, 8));
-	//teapot.set_world_position(make_float3(0, 8, -2));
-
-	//teapot.set_world_rotation(make_float3(0, 0, 0));
 
     teapot.bvh_top.print_stats();
 
@@ -324,6 +334,52 @@ int main() {
 
     cudaMemcpy(&d_meshes[0], cow.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
     cudaMemcpy(&d_meshes[1], teapot.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
+
+	MeshInstance cow_instance = MeshInstance(0);
+
+    cow_instance.pose.x = -2;
+	cow_instance.pose.pitch = 3.141592 / 2;
+    cow_instance.scale = make_float3(0.2, 1.0, 0.2);
+
+
+    MeshInstance cow_instance_2 = MeshInstance(0);
+
+    cow_instance_2.pose.x = -3;
+    cow_instance_2.pose.pitch = 3.141592 / 2;
+    cow_instance_2.scale = make_float3(0.3, 0.3, 0.3);
+
+	MeshInstance teapot_instance = MeshInstance(1);
+
+	teapot_instance.pose.x = 2;
+	teapot_instance.pose.pitch = 3.141592 / 2;
+
+	
+
+    cow_instance.build_inv();
+	cow_instance_2.build_inv();
+	teapot_instance.build_inv();
+
+
+	MeshInstance* d_mesh_instances;
+
+	cudaMalloc(&d_mesh_instances, sizeof(MeshInstance) * 3);
+
+	cudaMemcpy(&d_mesh_instances[0], &cow_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_mesh_instances[1], &cow_instance_2, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+
+
+
+
+    //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
+
+	//teapot.set_world_position(make_float3(0, 0, 8));
+	//teapot.set_world_position(make_float3(0, 8, -2));
+
+	//teapot.set_world_rotation(make_float3(0, 0, 0));
+
+   
+
 
 
 
@@ -353,18 +409,13 @@ int main() {
         start_time = cv::getTickCount();
 
 
-        //teapot.set_world_rotation(make_float3(0, angle, 0));
-        //d_MeshPrimitive* d_teapot = teapot.to_device();
+        teapot_instance.pose.yaw = angle;
+		teapot_instance.build_inv();
 
-        //camera_pose.x = sin(angle) * 12;
-        //camera_pose.y = cos(angle) * 12;
-        //camera_pose.z = 2;
-
-        //camera_pose.yaw = -angle + 3.141592;
-
+        cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
 
         // Launch the CUDA kernel to invert colors
-        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_meshes, 2);
+        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_mesh_instances, 3, d_meshes);
         cudaDeviceSynchronize();
 
         // End measuring time

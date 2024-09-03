@@ -18,8 +18,8 @@ struct TrianglePrimitive {
         vertices[1] = b;
         vertices[2] = c;
 
-        float3 v0 = vertices[2] - vertices[0];
-        float3 v1 = vertices[1] - vertices[0];
+        float3 v0 = vertices[1] - vertices[0];
+        float3 v1 = vertices[2] - vertices[0];
         normal = normalize(cross(v0, v1));
 
 		area = 0.5f * magnitude(cross(v0, v1));

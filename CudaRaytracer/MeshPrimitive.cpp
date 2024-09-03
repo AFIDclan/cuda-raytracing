@@ -11,24 +11,7 @@ MeshPrimitive::MeshPrimitive(std::vector<TrianglePrimitive> triangles)
 		this->triangles[i] = triangles[i];
 	}
 
-	this->pose = lre();
-
 	this->build_bvh();
-}
-
-void MeshPrimitive::set_world_rotation(float3 rotation)
-{
-	this->pose.yaw = rotation.x;
-	this->pose.pitch = rotation.y;
-	this->pose.roll = rotation.z;
-}
-
-void MeshPrimitive::set_world_position(float3 position)
-{
-	this->pose.x = position.x;
-	this->pose.y = position.y;
-	this->pose.z = position.z;
-
 }
 
 d_MeshPrimitive* MeshPrimitive::to_device()
@@ -40,7 +23,7 @@ d_MeshPrimitive* MeshPrimitive::to_device()
 	cudaMalloc(&d_triangles, this->num_triangles * sizeof(TrianglePrimitive));
 	cudaMemcpy(d_triangles, this->triangles, this->num_triangles * sizeof(TrianglePrimitive), cudaMemcpyHostToDevice);
 
-	d_MeshPrimitive* host_mesh = new d_MeshPrimitive(this->num_triangles, d_triangles, d_bvh_tree, pose);
+	d_MeshPrimitive* host_mesh = new d_MeshPrimitive(this->num_triangles, d_triangles, d_bvh_tree);
 
 	d_MeshPrimitive* d_mesh;
 
