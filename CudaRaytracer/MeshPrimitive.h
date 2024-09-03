@@ -17,6 +17,9 @@ struct d_MeshPrimitive {
 	lre pose;
 	lre inv_pose;
 
+	float3 scale;
+	float3 inv_scale;
+
 	float3 rotation;
 	float3 inv_rotation;
 
@@ -30,6 +33,10 @@ struct d_MeshPrimitive {
 
 		inv_pose = invert_lre(this->pose);
 		inv_rotation = make_float3(inv_pose.yaw, inv_pose.pitch, inv_pose.roll);
+
+		scale = make_float3(1.0, 1.0, 1.0);
+		//scale = make_float3(0.5, 0.5, 0.5);
+		inv_scale = make_float3(1 / scale.x, 1 / scale.y, 1 / scale.z);
 
 
 	}

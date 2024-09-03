@@ -28,8 +28,18 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
         // Express the ray direction in mesh coordinates
         float3 r_direction = apply_euler(mesh.rotation, ray.direction);
 
+        //r_direction.x *= 2;
+        //r_direction.y *= 2;
+        //r_direction.z *= 2;
+
+
         // Express the ray origin in mesh coordinates
         float3 r_origin = apply_lre(mesh.pose, ray.origin);
+
+        // Eg. Scale of 2 --> multiply the origin times 0.5 and make the object appear 2x the size
+        r_origin.x *= mesh.inv_scale.x;
+        r_origin.y *= mesh.inv_scale.y;
+        r_origin.z *= mesh.inv_scale.z;
 
         Ray r_ray = Ray(
             r_origin,
@@ -93,6 +103,10 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
 
                             // Express the location in world coordinates
                             hit_location = apply_lre(mesh.inv_pose, intersection);
+
+                            hit_location.x *= mesh.scale.x;
+                            hit_location.y *= mesh.scale.y;
+                            hit_location.z *= mesh.scale.z;
                         }
                     }
                 }
@@ -114,6 +128,7 @@ __device__ Ray& raytrace(Ray& ray, d_MeshPrimitive* meshes, int num_meshes)
 
         // Move just slightly so we don't capture the face we just hit
         ray.origin = ray.origin + ray.direction * 1e-4;
+
 
      } else {
 
