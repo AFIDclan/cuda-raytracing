@@ -11,6 +11,7 @@
 #include "MeshPrimitive.h"
 #include "MeshInstance.hpp"
 #include "Material.hpp"
+#include "Scene.h"
 #include <curand_kernel.h>
 
 
@@ -113,12 +114,22 @@ __device__ Ray& raytrace(Ray& ray, curandState* state, MeshInstance* mesh_instan
                     bool inside = mesh.triangles[index].point_inside(intersection);
 
                     if (inside) {
-                        float distance = magnitude(intersection - r_ray.origin);
+
+                        // Express the location in world coordinates
+                        
+
+                        hit_location.x = intersection.x * mesh_instance.scale.x;
+                        hit_location.y = intersection.y * mesh_instance.scale.y;
+                        hit_location.z = intersection.z * mesh_instance.scale.z;
+
+                        hit_location = apply_lre(mesh_instance.inv_pose, hit_location);
+
+                        float distance = magnitude(hit_location - ray.origin);
 
 						// Positive means the ray is facing the same direction as the normal and we hit the back of the triangle
 						float same_dir = dot(r_ray.direction, mesh.triangles[index].normal);
 
-                        if (same_dir < 0 && (hit_min == -1.0f || distance < hit_min)) {
+                        if (same_dir < 0 && (hit_min == FLT_MAX || distance < hit_min)) {
                             hit_min = distance;
                             hit_triangle = mesh.triangles[index];
                             
@@ -133,12 +144,7 @@ __device__ Ray& raytrace(Ray& ray, curandState* state, MeshInstance* mesh_instan
 							// Scaling the direction can un-normalize it
 							hit_normal = normalize(hit_normal);
 
-                            // Express the location in world coordinates
-                            hit_location = apply_lre(mesh_instance.inv_pose, intersection);
-
-                            hit_location.x *= mesh_instance.scale.x;
-                            hit_location.y *= mesh_instance.scale.y;
-                            hit_location.z *= mesh_instance.scale.z;
+                           
 
 							hit_material = material;
                         }
@@ -228,25 +234,40 @@ __global__ void render(uchar3* img, int width, int height, size_t pitch, const f
     //Camera Ray direction in world space
     direction = normalize(direction);
 
-    Ray ray = Ray(
-        origin,
-        direction,
-        make_uint2(x, y)
-    );
-
 	long long seed = (y * width + x) * 1000;
 
 	curandState state;
 	curand_init(seed, 0, 0, &state);
 
-    for (int i = 0; i < 4; i++)
+	float3 accumulated_color = make_float3(0.0, 0.0, 0.0);
+
+	int rpp = 1;
+
+    for (int j = 0; j < rpp; j++)
     {
-        if (ray.terminated)
-            break;
+        Ray ray = Ray(
+            origin,
+            direction,
+            make_uint2(x, y)
+        );
 
-        ray = raytrace(ray, &state, mesh_instances, num_mesh_instances, meshes, materials);
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (ray.terminated)
+                break;
+
+            ray = raytrace(ray, &state, mesh_instances, num_mesh_instances, meshes, materials);
+        }
+
+		accumulated_color.x += ray.color.x * ray.illumination;
+		accumulated_color.y += ray.color.y * ray.illumination;
+		accumulated_color.z += ray.color.z * ray.illumination;
     }
-
+   
+	accumulated_color.z /= rpp;
+	accumulated_color.y /= rpp;
+	accumulated_color.x /= rpp;
     
     //ray = raytrace(ray, meshes, num_meshes);
 
@@ -254,12 +275,17 @@ __global__ void render(uchar3* img, int width, int height, size_t pitch, const f
     //{
     //    ray.illumination = dot(ray.direction, direction);
     //}
-   
+
 
     uchar3* row = (uchar3*)((char*)img + y * pitch);
-    row[x].x = (ray.color.x * ray.illumination * 255);
+    row[x].x = (accumulated_color.x * 255);
+    row[x].y = (accumulated_color.y * 255);
+    row[x].z = (accumulated_color.z * 255);
+
+    
+    /*row[x].x = (ray.color.x * ray.illumination * 255);
     row[x].y = (ray.color.y * ray.illumination * 255);
-    row[x].z = (ray.color.z * ray.illumination * 255);
+    row[x].z = (ray.color.z * ray.illumination * 255);*/
     
 	
 }
@@ -360,103 +386,46 @@ int main() {
     camera_pose.y = -8;
     camera_pose.z = 0;
 
+	Scene scene = Scene();
+
 
 	Material glossy_red = Material();
 
 	glossy_red.albedo = make_float3(0.1, 0.2, 0.9);
 	glossy_red.roughness = 0.01;
 
+	scene.add_material(glossy_red);
+    
+	Material matte = Material();
 
-    Material matte_green = Material();
+    matte.albedo = make_float3(0.9, 0.9, 0.9);
+    matte.roughness = 0.3;
 
-    matte_green.albedo = make_float3(0.15, 0.9, 0.1);
-    matte_green.roughness = 0.3;
-
-    Material matte_blue = Material();
-
-    matte_blue.albedo = make_float3(0.9, 0.9, 0.9);
-    matte_blue.roughness = 0.3;
-
-	Material light = Material();
-
-	light.illumination = 1.0;
-	light.albedo = make_float3(1.0, 1.0, 1.0);
-
-    Material* d_materials;
-
-    cudaMalloc(&d_materials, sizeof(Material) * 4);
-
-    cudaMemcpy(&d_materials[0], glossy_red.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_materials[1], matte_green.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_materials[2], light.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_materials[3], matte_blue.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
+	scene.add_material(matte);
 
 
-    MeshPrimitive cow = OBJLoader::load("./cow.obj");
     MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
-    MeshPrimitive cube = OBJLoader::load("./cube.obj");
+    MeshPrimitive cube = OBJLoader::load("./Grass_Block.obj");
 
-    teapot.bvh_top.print_stats();
-
-    d_MeshPrimitive* d_meshes;
-
-    cudaMalloc(&d_meshes, sizeof(d_MeshPrimitive) * 3);
-
-    cudaMemcpy(&d_meshes[0], cow.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_meshes[1], teapot.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_meshes[2], cube.to_device(), sizeof(d_MeshPrimitive), cudaMemcpyHostToDevice);
-
-	MeshInstance cow_instance = MeshInstance(0, 1);
-
-    cow_instance.pose.x = -2;
-	cow_instance.pose.pitch = 3.141592 / 2;
-    cow_instance.scale = make_float3(0.2, 0.2, 0.2);
+	scene.add_mesh(teapot);
+	scene.add_mesh(cube);
 
 
-    MeshInstance cube_instance = MeshInstance(2, 3);
+	MeshInstance teapot_instance = MeshInstance(0, 0);
+    teapot_instance.pose.x = 2;
+    teapot_instance.pose.pitch = 3.141592 / 2;
 
-    cube_instance.pose.z = -2;
-    cube_instance.scale = make_float3(10.0, 10.0, 1.0);
+	MeshInstance cube_instance = MeshInstance(1, 1);
+	cube_instance.pose.x = -2;
+	cube_instance.pose.y = -1;
+	cube_instance.pose.z = 1;
 
-	MeshInstance teapot_instance = MeshInstance(1, 0);
+	scene.add_mesh_instance(teapot_instance);
 
-	teapot_instance.pose.x = 2;
-	teapot_instance.pose.pitch = 3.141592 / 2;
-
-
-    MeshInstance light_instance = MeshInstance(2, 2);
-
-    light_instance.pose.z = 30;
-    light_instance.scale = make_float3(10.0, 10.0, 1.0);
-
-    cow_instance.build_inv();
-    cube_instance.build_inv();
-	teapot_instance.build_inv();
-    light_instance.build_inv();
+	scene.add_mesh_instance(cube_instance);
 
 
-	MeshInstance* d_mesh_instances;
-
-	cudaMalloc(&d_mesh_instances, sizeof(MeshInstance) * 4);
-
-	cudaMemcpy(&d_mesh_instances[0], &cow_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_mesh_instances[1], &cube_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_mesh_instances[3], &light_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
-
-
-
-
-    //MeshPrimitive teapot = OBJLoader::load("C:/workspace/CudaRaytracer/cube.obj");
-
-	//teapot.set_world_position(make_float3(0, 0, 8));
-	//teapot.set_world_position(make_float3(0, 8, -2));
-
-	//teapot.set_world_rotation(make_float3(0, 0, 0));
-
-   
-
-
+    scene.upload_to_device();
 
 
     // Allocate CUDA memory for the image
@@ -484,12 +453,11 @@ int main() {
         start_time = cv::getTickCount();
 
         teapot_instance.pose.yaw = angle;
-		teapot_instance.build_inv();
-
-        cudaMemcpy(&d_mesh_instances[2], &teapot_instance, sizeof(MeshInstance), cudaMemcpyHostToDevice);
+		
+        scene.update_mesh_instance(0, teapot_instance);
 
         // Launch the CUDA kernel to invert colors
-        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, d_mesh_instances, 4, d_meshes, d_materials);
+        render << <grid_size, block_size >> > (d_img, width, height, pitch, K_inv, camera_pose, scene.d_mesh_instances, scene.num_mesh_instances, scene.d_meshes, scene.d_materials);
         cudaDeviceSynchronize();
 
         // End measuring time
