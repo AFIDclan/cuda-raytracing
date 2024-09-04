@@ -195,7 +195,7 @@ __device__ Ray& raytrace(Ray& ray, curandState* state, MeshInstance* mesh_instan
         ray.color.y *= 0.8;
         ray.color.z *= 0.6;
 
-        ray.illumination = 0.5;
+        ray.illumination = 0.85;
 
         ray.terminated = true;
     }
@@ -372,6 +372,11 @@ int main() {
     matte_green.albedo = make_float3(0.15, 0.9, 0.1);
     matte_green.roughness = 0.3;
 
+    Material matte_blue = Material();
+
+    matte_blue.albedo = make_float3(0.9, 0.9, 0.9);
+    matte_blue.roughness = 0.3;
+
 	Material light = Material();
 
 	light.illumination = 1.0;
@@ -379,11 +384,12 @@ int main() {
 
     Material* d_materials;
 
-    cudaMalloc(&d_materials, sizeof(Material) * 3);
+    cudaMalloc(&d_materials, sizeof(Material) * 4);
 
     cudaMemcpy(&d_materials[0], glossy_red.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
     cudaMemcpy(&d_materials[1], matte_green.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
     cudaMemcpy(&d_materials[2], light.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_materials[3], matte_blue.to_device(), sizeof(Material), cudaMemcpyHostToDevice);
 
 
     MeshPrimitive cow = OBJLoader::load("./cow.obj");
@@ -407,7 +413,7 @@ int main() {
     cow_instance.scale = make_float3(0.2, 0.2, 0.2);
 
 
-    MeshInstance cube_instance = MeshInstance(2, 1);
+    MeshInstance cube_instance = MeshInstance(2, 3);
 
     cube_instance.pose.z = -2;
     cube_instance.scale = make_float3(10.0, 10.0, 1.0);
