@@ -28,6 +28,10 @@ static __host__ __device__ float magnitude(float3 v) {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
+static __host__ __device__ float magnitude(float2 v) {
+	return sqrt(v.x * v.x + v.y * v.y);
+}
+
 static __host__ __device__ float inv_magnitude(float3 v) {
 	return Q_rsqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
@@ -75,6 +79,39 @@ static __host__ __device__ float3 operator*(float b, float3 a) {
 static __host__ __device__ float3 operator/(float3 a, float b) {
 	return make_float3(a.x / b, a.y / b, a.z / b);
 }
+
+static __host__ __device__ float3 f3_min(float3 a, float3 b) {
+	return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
+}
+
+static __host__ __device__ float3 f3_max(float3 a, float3 b) {
+	return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
+}
+
+static __host__ __device__ float2 operator*(float2 a, float b) {
+    return make_float2(a.x * b, a.y * b);
+}
+
+static __host__ __device__ float2 operator*(float a, float2 b) {
+    return make_float2(a * b.x, a * b.y);
+}
+
+static __host__ __device__ float2 operator*(float2 a, float2 b) {
+	return make_float2(a.x * b.x, a.y * b.y);
+}
+
+static __host__ __device__ float2 operator+(float2 a, float2 b) {
+	return make_float2(a.x + b.x, a.y + b.y);
+}
+
+static __host__ __device__ float2 operator-(float2 a, float2 b) {
+	return make_float2(a.x - b.x, a.y - b.y);
+}
+
+static __host__ __device__ float2 operator/(float2 a, float b) {
+	return make_float2(a.x / b, a.y / b);
+}
+
 
 template <typename T>
 __host__ __device__ void cu_swap(T& a, T& b) {

@@ -6,6 +6,12 @@
 #include <vector>
 #include "TrianglePrimitive.hpp"
 
+static struct SplitEvaluation
+{
+	float best_cost = FLT_MAX;
+	float best_split = 0.0f;
+
+};
 
 static struct d_BVHTree {
 
@@ -30,41 +36,19 @@ static struct d_BVHTree {
 	__host__ __device__ d_BVHTree(float3 min, float3 max, int child_index_a, int child_index_b, int* triangle_indices, int count_triangles) : min(min), max(max), child_index_a(child_index_a), child_index_b(child_index_b), triangle_indices(triangle_indices), count_triangles(count_triangles) {}
 
 	__host__ __device__ float ray_intersects(const Ray& ray) {
-		float tmin = (min.x - ray.origin.x) * ray.direction_inv.x;
-		float tmax = (max.x - ray.origin.x) * ray.direction_inv.x;
 
-		if (tmin > tmax) cu_swap(tmin, tmax);
+		float3 tmin = (min - ray.origin) * ray.direction_inv;
+		float3 tmax = (max - ray.origin) * ray.direction_inv;
 
-		float tymin = (min.y - ray.origin.y) * ray.direction_inv.y;
-		float tymax = (max.y - ray.origin.y) * ray.direction_inv.y;
+		float3 t1 = f3_min(tmin, tmax);
+		float3 t2 = f3_max(tmin, tmax);
 
-		if (tymin > tymax) cu_swap(tymin, tymax);
+		float dst_far = fminf(fminf(t2.x, t2.y), t2.z);
+		float dst_near = fmaxf(fmaxf(t1.x, t1.y), t1.z);
 
-		// Check for intersection failures
-		if ((tmin > tymax) || (tymin > tmax))
-			return FLT_MAX;
+		bool hit = dst_far >= dst_near && dst_far > 0.0f;
 
-		// Update tmin and tmax to account for y-axis intersection
-		if (tymin > tmin)
-			tmin = tymin;
-		if (tymax < tmax)
-			tmax = tymax;
-
-		float tzmin = (min.z - ray.origin.z) * ray.direction_inv.z;
-		float tzmax = (max.z - ray.origin.z) * ray.direction_inv.z;
-
-		if (tzmin > tzmax) cu_swap(tzmin, tzmax);
-
-		// Final intersection check
-		if ((tmin > tzmax) || (tzmin > tmax))
-			return FLT_MAX;
-
-		// Update tmin to account for z-axis intersection
-		if (tzmin > tmin)
-			tmin = tzmin;
-
-		// Return the minimum distance to the bounding box
-		return tmin;
+		return hit ? dst_near : FLT_MAX;
 	}
 
 
@@ -238,20 +222,27 @@ static struct BVHTree {
 
 		std::string axis;
 		float split_pos;
-
+		float best_cost = FLT_MAX;
 
 		if (x_eval.first < y_eval.first && x_eval.first < z_eval.first) {
 			axis = "x";
 			split_pos = x_eval.second;
+			best_cost = x_eval.first;
 		}
 		else if (y_eval.first < x_eval.first && y_eval.first < z_eval.first) {
 			axis = "y";
 			split_pos = y_eval.second;
+			best_cost = y_eval.first;
 		}
 		else {
 			axis = "z";
 			split_pos = z_eval.second;
+			best_cost = z_eval.first;
 		}
+
+		// Don't split if it will make things worse
+		if (best_cost >= cost())
+			return;
 
 
 		std::vector<int> left_indices;

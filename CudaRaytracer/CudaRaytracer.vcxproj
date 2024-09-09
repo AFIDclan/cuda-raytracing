@@ -77,15 +77,19 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="Camera.cu" />
     <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="raycast.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BVHTree.hpp" />
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="Material.hpp" />
     <ClInclude Include="MeshInstance.hpp" />
     <ClInclude Include="MeshPrimitive.h" />
     <ClInclude Include="OBJLoader.hpp" />
     <ClInclude Include="Ray.hpp" />
+    <ClInclude Include="raycast.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="transforms.hpp" />
     <ClInclude Include="TrianglePrimitive.hpp" />

@@ -89,7 +89,7 @@ namespace OBJLoader
             if (tokens[0] == "f")
             {
                 // Split the face into vertex/texture/normal indices
-                vector<int> vertex_indices, normal_indices;
+                vector<int> vertex_indices, normal_indices, tex_indices;
 
                 for (int i = 1; i < tokens.size(); ++i)
                 {
@@ -104,7 +104,7 @@ namespace OBJLoader
 					if (first_slash != string::npos)
 					{
 						int t_idx = stoi(tokens[i].substr(first_slash + 1)) - 1;
-						//tex_indices.push_back(t_idx);
+						tex_indices.push_back(t_idx);
                     }
 
                     // Extract the normal index
@@ -115,26 +115,58 @@ namespace OBJLoader
                     }
                 }
 
-				if (normal_indices.size() > 0)
+	/*			if (normal_indices.size() > 0)
                 {
 
-					// Use only the normal of the first vertex? IDK why each has one
 
                     for (int i = 1; i < vertex_indices.size() - 1; i++)
                     {
-                        triangles.push_back(TrianglePrimitive(vertices[vertex_indices[0]], vertices[vertex_indices[i]], vertices[vertex_indices[i + 1]], normals[normal_indices[0]]));
+						float3 norm1 = normals[normal_indices[0]];
+						float3 norm2 = normals[normal_indices[i]];
+						float3 norm3 = normals[normal_indices[i + 1]];
+
+						float3 normal = normalize(norm1 + norm2 + norm3);
+
+                        triangles.push_back(TrianglePrimitive(vertices[vertex_indices[0]], vertices[vertex_indices[i]], vertices[vertex_indices[i + 1]], normal));
                     }
 
                 }
-                else {
+                else {*/
 					
                     //0 (i) (i + 1)  [for i in 1..(n - 2)]
 
 					for (int i = 1; i < vertex_indices.size() - 1; i++)
 					{
-						triangles.push_back(TrianglePrimitive(vertices[vertex_indices[0]], vertices[vertex_indices[i]], vertices[vertex_indices[i + 1]]));
+                        float3 v0 = vertices[vertex_indices[i]] - vertices[vertex_indices[0]];
+                        float3 v1 = vertices[vertex_indices[i + 1]] - vertices[vertex_indices[0]];
+                        float3 normal = normalize(cross(v0, v1));
+
+                        if (tex_indices.size() > 0)
+                        {
+							triangles.push_back(TrianglePrimitive(
+								vertices[vertex_indices[0]],
+								vertices[vertex_indices[i]],
+								vertices[vertex_indices[i + 1]],
+								normal,
+								tex_coords[tex_indices[0]],
+								tex_coords[tex_indices[i]],
+								tex_coords[tex_indices[i + 1]]
+							));
+
+
+
+						}
+						else
+						{
+							triangles.push_back(TrianglePrimitive(
+								vertices[vertex_indices[0]],
+								vertices[vertex_indices[i]],
+								vertices[vertex_indices[i + 1]],
+								normal
+							));
+						}
 					}
-                }
+                //}
             }
         }
 
