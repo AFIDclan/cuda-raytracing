@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <cassert>
 #include <iostream>
-
+#include <math.h>
 
 namespace transforms {
 

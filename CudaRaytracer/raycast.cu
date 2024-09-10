@@ -85,22 +85,15 @@ __device__ HitInfo& cast_ray(Ray& ray, curandState* state, MeshInstance* mesh_in
                 for (int i = 0; i < current_bvh.count_triangles; i++) {
                     int index = current_bvh.triangle_indices[i];
 
-                    //float3 intersection = mesh.triangles[index].ray_intersect(r_ray);
+                    float3 intersection = mesh.triangles[index].ray_intersect(r_ray);
 
-                    //// If the intersection is at FLT_MAX, the ray did not intersect with the triangle
-                    //if (intersection.x == FLT_MAX)
-                    //    continue;
+                    // If the intersection is at FLT_MAX, the ray did not intersect with the triangle
+                    if (intersection.x == FLT_MAX)
+                       continue;
 
-                    //float2 uv = mesh.triangles[index].point_inside(intersection);
-
-                    float dist;
-
-                    float2 uv = mesh.triangles[index].ray_inside(r_ray, dist);
+                    float2 uv = mesh.triangles[index].point_inside(intersection);
 
                     if (uv.x != FLT_MAX) {
-
-                        // Express the location in world coordinates
-                        float3 intersection = r_ray.origin + r_ray.direction * dist;
 
                         hit_info.location.x = intersection.x * mesh_instance.scale.x;
                         hit_info.location.y = intersection.y * mesh_instance.scale.y;

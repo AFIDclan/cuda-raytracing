@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include "utils.hpp"
 #include "Ray.hpp"
+#include <cfloat>
 
 struct TrianglePrimitive {
     float3 vertices[3];
@@ -175,7 +176,7 @@ struct TrianglePrimitive {
             float2 uv1 = uv_coords[1];
             float2 uv2 = uv_coords[2];
 
-            float2 interpolated_uv = (u * uv0) + (v * uv1) + (w * uv2);
+            float2 interpolated_uv = (w * uv0) + (v * uv1) + (u * uv2);
 
             return interpolated_uv;
         }

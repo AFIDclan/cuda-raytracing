@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <math.h>
 #include "transforms.hpp"
 
 using namespace transforms;
+
 
 
 // https://en.wikipedia.org/wiki/Fast_inverse_square_root

@@ -5,15 +5,17 @@
 #include "Ray.hpp"
 #include <vector>
 #include "TrianglePrimitive.hpp"
+#include <cfloat>
+#include <math.h>
 
-static struct SplitEvaluation
+struct SplitEvaluation
 {
 	float best_cost = FLT_MAX;
 	float best_split = 0.0f;
 
 };
 
-static struct d_BVHTree {
+struct d_BVHTree {
 
 	float3 min;
 	float3 max;
@@ -54,7 +56,7 @@ static struct d_BVHTree {
 
 };
 
-static struct BVHTree {
+struct BVHTree {
 	float3 min;
 	float3 max;
 

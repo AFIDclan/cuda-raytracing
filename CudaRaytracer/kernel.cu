@@ -40,71 +40,73 @@ void display_image(uchar3* d_img, int width, int height, size_t pitch, double fp
     std::string fps_text = "FPS: " + std::to_string(fps);
     cv::putText(img_cpu, fps_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
 
-    // Display the image using OpenCV
-    cv::imshow("Image", img_cpu);
+    cv::imwrite("out.png", img_cpu);
 
-    // Capture key pressed
-    int key = cv::waitKey(1);
+    // // Display the image using OpenCV
+    // cv::imshow("Image", img_cpu);
 
-    if (key == 'w')
-    {
-		lre inv_camera_pose = invert_lre(*mouse_state.pose);
+    // // Capture key pressed
+    // int key = cv::waitKey(1);
 
-		float3 forward = make_float3(0, 0.1, 0);
+    // if (key == 'w')
+    // {
+	// 	lre inv_camera_pose = invert_lre(*mouse_state.pose);
+
+	// 	float3 forward = make_float3(0, 0.1, 0);
        
-		float3 new_pos = apply_lre(inv_camera_pose, forward);
+	// 	float3 new_pos = apply_lre(inv_camera_pose, forward);
 
-		mouse_state.pose->x = new_pos.x;
-		mouse_state.pose->y = new_pos.y;
-		mouse_state.pose->z = new_pos.z;
-    }
-	else if (key == 's')
-	{
+	// 	mouse_state.pose->x = new_pos.x;
+	// 	mouse_state.pose->y = new_pos.y;
+	// 	mouse_state.pose->z = new_pos.z;
+    // }
+	// else if (key == 's')
+	// {
    
-        lre inv_camera_pose = invert_lre(*mouse_state.pose);
+    //     lre inv_camera_pose = invert_lre(*mouse_state.pose);
 
-        float3 forward = make_float3(0, -0.1, 0);
+    //     float3 forward = make_float3(0, -0.1, 0);
 
-        float3 new_pos = apply_lre(inv_camera_pose, forward);
+    //     float3 new_pos = apply_lre(inv_camera_pose, forward);
 
-        mouse_state.pose->x = new_pos.x;
-        mouse_state.pose->y = new_pos.y;
-        mouse_state.pose->z = new_pos.z;
+    //     mouse_state.pose->x = new_pos.x;
+    //     mouse_state.pose->y = new_pos.y;
+    //     mouse_state.pose->z = new_pos.z;
         
-	}
-	else if (key == 'a')
-	{
+	// }
+	// else if (key == 'a')
+	// {
         
-        lre inv_camera_pose = invert_lre(*mouse_state.pose);
+    //     lre inv_camera_pose = invert_lre(*mouse_state.pose);
 
-        float3 forward = make_float3(-0.1, 0.0, 0);
+    //     float3 forward = make_float3(-0.1, 0.0, 0);
 
-        float3 new_pos = apply_lre(inv_camera_pose, forward);
+    //     float3 new_pos = apply_lre(inv_camera_pose, forward);
 
-        mouse_state.pose->x = new_pos.x;
-        mouse_state.pose->y = new_pos.y;
-        mouse_state.pose->z = new_pos.z;
+    //     mouse_state.pose->x = new_pos.x;
+    //     mouse_state.pose->y = new_pos.y;
+    //     mouse_state.pose->z = new_pos.z;
         
-    }
-    else if (key == 'd')
-    {
+    // }
+    // else if (key == 'd')
+    // {
 
-        lre inv_camera_pose = invert_lre(*mouse_state.pose);
+    //     lre inv_camera_pose = invert_lre(*mouse_state.pose);
 
-        float3 forward = make_float3(0.1, 0.0, 0);
+    //     float3 forward = make_float3(0.1, 0.0, 0);
 
-        float3 new_pos = apply_lre(inv_camera_pose, forward);
+    //     float3 new_pos = apply_lre(inv_camera_pose, forward);
 
-        mouse_state.pose->x = new_pos.x;
-        mouse_state.pose->y = new_pos.y;
-        mouse_state.pose->z = new_pos.z;
+    //     mouse_state.pose->x = new_pos.x;
+    //     mouse_state.pose->y = new_pos.y;
+    //     mouse_state.pose->z = new_pos.z;
 
-    }
+    // }
 
-    // If the key pressed is 'q', then exit the loop
-    if (key == 'q') {
-        exit(0);
-    }
+    // // If the key pressed is 'q', then exit the loop
+    // if (key == 'q') {
+    //     exit(0);
+    // }
 }
 
 
@@ -203,7 +205,7 @@ int main() {
     scene.add_material(calibration_mat);
 
 
-    MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
+    // MeshPrimitive teapot = OBJLoader::load("./teapot.obj");
     MeshPrimitive cube = OBJLoader::load("./calibration_area.obj");
     MeshPrimitive calibration_board = OBJLoader::load("./calibration_board.obj");
 
@@ -212,19 +214,16 @@ int main() {
 
     //room.bvh_top.print_stats();
 
-	scene.add_mesh(teapot);
+	// scene.add_mesh(teapot);
 	scene.add_mesh(cube);
 	scene.add_mesh(calibration_board);
 	//scene.add_mesh(room);
 
 
-	MeshInstance teapot_instance = MeshInstance(0, 0);
-    teapot_instance.pose.x = 2;
-    teapot_instance.pose.pitch = 3.141592 / 2;
 
     //scene.add_mesh_instance(teapot_instance);
 
-	MeshInstance cube_instance = MeshInstance(1, 2);
+	MeshInstance cube_instance = MeshInstance(0, 2);
 	cube_instance.pose.x = 0;
 	cube_instance.pose.y = 0;
 	cube_instance.pose.z = 0;
@@ -232,7 +231,7 @@ int main() {
 
     scene.add_mesh_instance(cube_instance);
 
-	MeshInstance calibration_board_instance = MeshInstance(2, 3);
+	MeshInstance calibration_board_instance = MeshInstance(1, 3);
     calibration_board_instance.pose.x = -0.6;
     calibration_board_instance.pose.y = 1.48;
     calibration_board_instance.pose.z = 0.73;
@@ -248,6 +247,10 @@ int main() {
     uchar3* d_img;
     size_t pitch;
     cudaMallocPitch(&d_img, &pitch, width * sizeof(uchar3), height);
+    // Allocate CUDA memory for the image
+    uchar3* d_img2;
+    size_t pitch2;
+    cudaMallocPitch(&d_img2, &pitch2, width * sizeof(uchar3), height);
 
   
 
@@ -256,13 +259,13 @@ int main() {
     MouseParams mouse_state;
     mouse_state.pose = &camera.pose;
 
-    cv::namedWindow("Image");
-    cv::setMouseCallback("Image", on_mouse, &mouse_state);
+    // cv::namedWindow("Image");
+    // cv::setMouseCallback("Image", on_mouse, &mouse_state);
 
     // Loop while program is running
-    while (true) {
-
-		angle += 0.005f;
+    for (int l=0;l<100;l++)
+    {
+        angle += 0.005f;
 
         // Start measuring time
 
@@ -272,6 +275,7 @@ int main() {
         start_time = cv::getTickCount();
 
 		camera.render_scene(scene, d_img, pitch);
+		camera.render_scene(scene, d_img2, pitch);
         cudaDeviceSynchronize();
 
         auto err = cudaGetLastError();
@@ -285,6 +289,8 @@ int main() {
         end_time = cv::getTickCount();
         double time_taken = (end_time - start_time) / cv::getTickFrequency();
         fps = 1.0 / time_taken;
+
+        std::cout << "FPS: " << fps << "\n";
 
 		display_image(d_img, width, height, pitch, fps, mouse_state);
     }
